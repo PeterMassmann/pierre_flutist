@@ -154,22 +154,26 @@ Las partituras son archivos JSON en `scores/` que definen secuencias de estados 
 | Tests unitarios (41) | Done | cinematica, motor_route, PID |
 | Tests integración (8) | Done | VirtualAxis/Flow simulados, determinismo |
 | README.md | Done | Este documento |
-| Git: commit inicial | **Pendiente** | Requiere `git config` del usuario |
+| Git: commit inicial | Done | Repositorio en GitHub (privado) |
 
 ---
 
-### Fase 2: Rediseno de GUI
+### Fase 2: Rediseno de GUI (EN PROGRESO)
 
 **Objetivo:** Interfaz moderna, clara y profesional para demos y uso diario.
 
-| Tarea | Descripción |
-|---|---|
-| Migrar a tema claro/moderno | Reemplazar look default de PyQt5 por tema coherente |
-| Reorganizar layout principal | Panel de estado, controles, visualización separados |
-| Mejorar visualización de rutas | Gráficos más claros con pyqtgraph |
-| Panel de estado del robot | Indicadores en tiempo real: posición, flujo, nota, estado de conexión |
-| Editor de partituras mejorado | Timeline visual, drag & drop de estados |
-| Manejo de errores en GUI | Mensajes claros al usuario, no crashes silenciosos |
+| Tarea | Estado | Detalle |
+|---|:---:|---|
+| Tema QSS profesional | Done | `src/theme.qss` — paleta azul/verde/rojo, estilos para todos los widgets |
+| Constantes visuales | Done | Colores de curvas/puntos/cursor centralizados en constantes |
+| Reorganizar panel lateral | Done | Grupos: SOFT STOP, Estado, Transporte, Grabación, Edición, Herramientas |
+| Panel de estado (LEDs) | Done | Indicadores: Conectado, En posición, Ejecutando |
+| Barra de estado inferior | Done | Archivo activo, espacio (tarea/articular), tiempo del cursor |
+| Tooltips descriptivos | Done | Todos los botones tienen tooltip explicativo |
+| Secciones colapsables | Done | Lips, Tongue, Dinámica con expand/collapse clickeable |
+| Mejorar visualización de rutas | Pendiente | Gráficos más claros con pyqtgraph |
+| Editor de partituras mejorado | Pendiente | Timeline visual, drag & drop de estados |
+| Manejo de errores en GUI | Pendiente | Mensajes claros al usuario, no crashes silenciosos |
 
 **Criterio de éxito:** Un tesista nuevo puede operar el robot en <30 min con la GUI.
 

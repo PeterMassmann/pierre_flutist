@@ -1,7 +1,7 @@
 import threading
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QMenu, QMessageBox,
     QFileDialog, QSplashScreen, QDesktopWidget, QLabel, QFrame, QVBoxLayout,
-    QHBoxLayout, QWidget, QSizePolicy, QGroupBox)
+    QHBoxLayout, QWidget, QSizePolicy, QGroupBox, QPushButton)
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore
 
@@ -26,6 +26,45 @@ from src.interactive_plot import InteractivePlotWidget
 from src.plots.plot_window import LivePlotWindow, PassivePlotWindow
 
 from src.forms.forms import PointForm, VibratoForm, windows_vibrato, FilterForm, filter_windows, filter_choices, FuncTableForm, NoteForm, DurationForm, CorrectionForm, ScaleTimeForm, SettingsForm, TrillForm, StatesFromNotesForm, SurfacePointForm, TonguePointForm
+
+class CollapsibleSection(QWidget):
+    """Widget colapsable con header clickeable y contenido que se muestra/oculta."""
+    def __init__(self, title, widget, parent=None, collapsed=True):
+        super().__init__(parent)
+        self._widget = widget
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        # Header clickeable
+        self._header = QPushButton(f"\u25B6  {title}")  # ▶ colapsado
+        self._header.setStyleSheet(
+            "QPushButton { text-align: left; background-color: #ECEFF1; "
+            "border: 1px solid #CFD8DC; border-radius: 4px; padding: 4px 8px; "
+            "font-weight: 600; font-size: 9pt; color: #455A64; }"
+            "QPushButton:hover { background-color: #CFD8DC; }"
+        )
+        self._header.setCursor(QtCore.Qt.PointingHandCursor)
+        self._header.clicked.connect(self.toggle)
+        layout.addWidget(self._header)
+        layout.addWidget(self._widget)
+        self._title = title
+        self._collapsed = not collapsed  # toggle lo invertirá
+        self.toggle()
+
+    def toggle(self):
+        self._collapsed = not self._collapsed
+        self._widget.setVisible(not self._collapsed)
+        arrow = "\u25B6" if self._collapsed else "\u25BC"  # ▶ o ▼
+        self._header.setText(f"{arrow}  {self._title}")
+
+    def expand(self):
+        if self._collapsed:
+            self.toggle()
+
+    def collapse(self):
+        if not self._collapsed:
+            self.toggle()
+
 
 # --- Constantes visuales (coherentes con theme.qss) ---
 PLOT_BG = '#FFFFFF'
@@ -307,18 +346,30 @@ class Window(QMainWindow, PlotWindow):
         self.graphicsView_7.setXLink(self.graphicsView_5)
         
 
-        ## Conectamos los checkboxes a sus funciones. Si se aprieta alguno se esconde o muestra uno de los gráficos
+        ## Envolver gráficos secundarios en secciones colapsables
+        # Primero quitarlos del layout vertical
+        self.verticalLayout.removeWidget(self.graphicsView_6)
+        self.verticalLayout.removeWidget(self.graphicsView_7)
+        # graphicsView_8 ya fue agregado dinámicamente, lo quitamos también
+        self.verticalLayout.removeWidget(self.graphicsView_8)
+
+        self._section_lips = CollapsibleSection("Apertura labios", self.graphicsView_6, collapsed=True)
+        self._section_tongue = CollapsibleSection("Lengua", self.graphicsView_7, collapsed=True)
+        self._section_dynamics = CollapsibleSection("Dinámica", self.graphicsView_8, collapsed=True)
+        self.verticalLayout.addWidget(self._section_lips)
+        self.verticalLayout.addWidget(self._section_tongue)
+        self.verticalLayout.addWidget(self._section_dynamics)
+
+        ## Conectamos los checkboxes a sus funciones (gráficos 1-5 principales)
         self.checkBox.stateChanged.connect(self.checkBox_clicked)
         self.checkBox_2.stateChanged.connect(self.checkBox2_clicked)
         self.checkBox_3.stateChanged.connect(self.checkBox3_clicked)
         self.checkBox_4.stateChanged.connect(self.checkBox4_clicked)
         self.checkBox_5.stateChanged.connect(self.checkBox5_clicked)
-        self.checkBox_6.stateChanged.connect(self.checkBox6_clicked)
-        self.checkBox_7.stateChanged.connect(self.checkBox7_clicked)
-        self.checkBox_8.stateChanged.connect(self.checkBox8_clicked)
-        self.graphicsView_6.hide()
-        self.graphicsView_7.hide()
-        self.graphicsView_8.hide()
+        # Checkboxes 6-8 ahora controlan las secciones colapsables
+        self.checkBox_6.stateChanged.connect(lambda v: self._section_lips.expand() if v else self._section_lips.collapse())
+        self.checkBox_7.stateChanged.connect(lambda v: self._section_tongue.expand() if v else self._section_tongue.collapse())
+        self.checkBox_8.stateChanged.connect(lambda v: self._section_dynamics.expand() if v else self._section_dynamics.collapse())
         
         ## Creamos todos los menus desplegables (que se muestran al hacer click en algun lugar)
         self.pointMenu = QMenu(self) # este se mostrara al hacer click en algun punto de las trayectorias (los puntos verdes)
