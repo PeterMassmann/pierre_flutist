@@ -1,5 +1,7 @@
 import threading
-from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QMessageBox, QFileDialog, QSplashScreen, QDesktopWidget
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QMenu, QMessageBox,
+    QFileDialog, QSplashScreen, QDesktopWidget, QLabel, QFrame, QVBoxLayout,
+    QHBoxLayout, QWidget, QSizePolicy, QGroupBox)
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore
 
@@ -107,6 +109,7 @@ class Window(QMainWindow, PlotWindow):
     def __init__(self, app, running, musician_pipe, data, parent=None, connected=False):
         super().__init__(parent)
         self.setupUi(self)
+        self._rebuild_side_panel()
         self.app = app
         self.route = [] # datos para el grafico 1: l
         self.route2 = [] # datos para el grafico 2: theta
@@ -457,8 +460,89 @@ class Window(QMainWindow, PlotWindow):
         self.refresh_plots_signal.emit([1,2,3,4,5,6,7])
 
         self.setWindowTitle("Pierre - Flutist Robot")
+
+        # Barra de estado inferior con información contextual
+        self._status_space_label = QLabel("Espacio: Tarea")
+        self._status_file_label = QLabel("Sin guardar")
+        self._status_time_label = QLabel("t: 0.0s")
+        for lbl in (self._status_space_label, self._status_file_label, self._status_time_label):
+            lbl.setStyleSheet("padding: 0 12px; color: #455A64;")
+        self.statusbar.addWidget(self._status_file_label, 1)
+        self.statusbar.addWidget(self._status_space_label)
+        self.statusbar.addWidget(self._status_time_label)
         self.file_saved = True # esta variable se hace falsa cuando el archivo es modificado. Entonces se agrega un asterisco al titulo de la ventana y antes de cerrar o abrir otra partitura se pregunta al usuario si quiere guardar los cambios
-    
+
+    def _rebuild_side_panel(self):
+        """Reorganiza el panel lateral derecho con grupos lógicos y SOFT STOP prominente."""
+        # Remover todos los widgets e items del layout original
+        while self.verticalLayout_2.count():
+            item = self.verticalLayout_2.takeAt(0)
+            # No destruir los widgets, solo quitarlos del layout
+            if item.widget():
+                item.widget().setParent(None)
+            elif item.layout():
+                # Quitar widgets de sub-layouts (horizontalLayout_4, horizontalLayout_2)
+                sub = item.layout()
+                while sub.count():
+                    sub_item = sub.takeAt(0)
+                    if sub_item.widget():
+                        sub_item.widget().setParent(None)
+
+        def _make_separator():
+            sep = QFrame()
+            sep.setFrameShape(QFrame.HLine)
+            sep.setFixedHeight(1)
+            return sep
+
+        def _make_group_label(text):
+            lbl = QLabel(text)
+            lbl.setStyleSheet("color: #455A64; font-size: 8pt; font-weight: 700; "
+                              "text-transform: uppercase; padding: 4px 0px 2px 0px;")
+            return lbl
+
+        # --- SOFT STOP arriba de todo ---
+        self.verticalLayout_2.addWidget(self.softStopButton)
+
+        self.verticalLayout_2.addWidget(_make_separator())
+
+        # --- Grupo: Transporte ---
+        self.verticalLayout_2.addWidget(_make_group_label("TRANSPORTE"))
+        self.verticalLayout_2.addWidget(self.goToCoursorButton)
+        transport_row = QHBoxLayout()
+        transport_row.addWidget(self.playButton)
+        transport_row.addWidget(self.stopButton)
+        self.verticalLayout_2.addLayout(transport_row)
+        self.verticalLayout_2.addWidget(self.recordCheckBox)
+
+        self.verticalLayout_2.addWidget(_make_separator())
+
+        # --- Grupo: Grabación ---
+        self.verticalLayout_2.addWidget(_make_group_label("GRABACIÓN"))
+        self.verticalLayout_2.addWidget(self.clearPlotButton)
+        self.verticalLayout_2.addWidget(self.startFreeRocordingButton)
+
+        self.verticalLayout_2.addWidget(_make_separator())
+
+        # --- Grupo: Edición ---
+        self.verticalLayout_2.addWidget(_make_group_label("EDICIÓN"))
+        self.verticalLayout_2.addWidget(self.statesFromNotesButton)
+        edit_row = QHBoxLayout()
+        edit_row.addWidget(self.addCorrectionButton)
+        edit_row.addWidget(self.scaleTimeButton)
+        self.verticalLayout_2.addLayout(edit_row)
+        self.verticalLayout_2.addWidget(self.changeDurationButton)
+
+        self.verticalLayout_2.addWidget(_make_separator())
+
+        # --- Grupo: Herramientas ---
+        self.verticalLayout_2.addWidget(_make_group_label("HERRAMIENTAS"))
+        self.verticalLayout_2.addWidget(self.seeMotorRefsButton)
+        self.verticalLayout_2.addWidget(self.manualControlButton)
+        self.verticalLayout_2.addWidget(self.psControlButton)
+
+        # Spacer al fondo para empujar todo arriba
+        self.verticalLayout_2.addStretch(1)
+
     def start_free_recording(self):
         self.free_recording = not self.free_recording
         if self.free_recording:
@@ -753,7 +837,7 @@ class Window(QMainWindow, PlotWindow):
             self.graphicsView_8.refresh()
             self.changes_made(from_hist=True) # y se informa que hubo cambios
 
-    def change_to_joint_space(self): # cambia el espacio de instruccion del de la tarea al de las junturas. Ahora la trayectoria que se escriba en el gráfico de mas arriba se instruye directamente al eje x, el de almedio al eje z y el de abajo al eje alpha. 
+    def change_to_joint_space(self):
         self.space_of_instruction = 1
         self.graphicsView.setLabel('left', "X", units='mm')
         self.graphicsView_2.setLabel('left', "Z", units='mm')
@@ -761,9 +845,9 @@ class Window(QMainWindow, PlotWindow):
         self.checkBox.setText("X")
         self.checkBox_2.setText("Z")
         self.checkBox_3.setText("Alpha")
-        # self.seeMotorRefsButton.setText(u"See r, \u03b8 and o")
+        self._status_space_label.setText("Espacio: Articular")
 
-    def change_to_task_space(self): # cambia el espacio de instruccion del de las junturas al de la tarea. Ahora la trayectoria que se escriba en el gráfico de mas arriba representa l, el de almedio theta y el de abajo el offset. 
+    def change_to_task_space(self):
         self.space_of_instruction = 0
         self.graphicsView.setLabel('left', 'r', units='mm')
         self.graphicsView_2.setLabel('left', u"\u03b8", units='°')
@@ -771,7 +855,7 @@ class Window(QMainWindow, PlotWindow):
         self.checkBox.setText("Lip-to-edge distance")
         self.checkBox_2.setText("Angle of incidence")
         self.checkBox_3.setText("Offset")
-        # self.seeMotorRefsButton.setText("See X, Z and Alpha")
+        self._status_space_label.setText("Espacio: Tarea")
 
     def soft_stop(self): # detiene los movimientos que se esten realizando y lleva el flujo a cero
         self.musician_pipe.send(["stop"])
@@ -1130,12 +1214,18 @@ class Window(QMainWindow, PlotWindow):
         '''
         self.setWindowTitle("Pierre - Flutist Robot")
         self.file_saved = True
+        if self.filename:
+            self._status_file_label.setText(os.path.basename(self.filename))
+        else:
+            self._status_file_label.setText("Sin guardar")
 
     def changes_made(self, from_hist=False):
         '''
         Se llama esta función cuando la partitura sufre algun cambio.
         '''
-        self.setWindowTitle("Pierre - Flutist Robot*") # agregamos un asterisco al titulo de la ventana para indicar que hay cambios sin guardar
+        self.setWindowTitle("Pierre - Flutist Robot*")
+        fname = os.path.basename(self.filename) if self.filename else "Sin guardar"
+        self._status_file_label.setText(f"{fname} (modificado)")
         #self.seeMotorRefsButton.setEnabled(False)
         self.file_saved = False
         if not from_hist: # si el cambio se hace mediante undo o redo no se entra a este if.
@@ -1307,6 +1397,7 @@ class Window(QMainWindow, PlotWindow):
         self.rule7.setPos(t)
         self.graphicsView_8.rule.setPos(t)
         self.playButton.setEnabled(False) # al cambiar el cursor hay que volver a apretar Move to Cursor para poder ejecutar una partitura
+        self._status_time_label.setText(f"t: {t:.1f}s")
 
     ####
     ####
