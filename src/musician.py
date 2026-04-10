@@ -157,12 +157,21 @@ class Musician(Process):
             (self.fingers_driver_conn, "finger_driver_started", "finger_driver_started"),
         ]
         _startup_t0 = time.perf_counter()
+        _startup_heartbeat = time.perf_counter()
         while True: # esperar a que todos los dispositivos terminen sus rutinas de inicio
             if devices_connected == 8:
                 break
             if time.perf_counter() - _startup_t0 > 120:  # timeout global de 2 minutos para el startup
                 logger.error(f"TIMEOUT: Solo {devices_connected}/8 dispositivos conectados despues de 120s")
                 break
+            # Enviar heartbeats durante startup para evitar watchdog timeouts en drivers ya arrancados
+            if time.perf_counter() - _startup_heartbeat > SAFETY_WATCHDOG_TIMEOUT / 3:
+                for pipe_conn, expected_msg, gui_msg in _startup_pipes[:3]:  # solo los 3 AMCI drivers
+                    try:
+                        pipe_conn.send(["heartbeat"])
+                    except Exception:
+                        pass
+                _startup_heartbeat = time.perf_counter()
             # Revisar TODOS los pipes en cada iteracion (no elif) para no perder mensajes simultaneos
             for pipe_conn, expected_msg, gui_msg in _startup_pipes:
                 if pipe_conn.poll(0.01):  # poll con timeout breve
@@ -391,19 +400,28 @@ class Musician(Process):
         start_already = True
         if self.x_connect:
             x = self.x_driver.encoder_position.value
-            if x - self.loaded_route_x[0][1] > 40: # si estamos a menos de 40 pasos se acepta
+            x_target = self.loaded_route_x[0][1]
+            x_err = abs(x - x_target)
+            if x_err > 40:
+                logger.warning(f'start_loaded_script: X no en posición (actual={x}, target={x_target}, error={x_err} steps)')
                 start_already = False
         if self.z_connect:
             z = self.z_driver.encoder_position.value
-            if z - self.loaded_route_z[0][1] > 40: # si estamos a menos de 40 pasos se acepta
+            z_target = self.loaded_route_z[0][1]
+            z_err = abs(z - z_target)
+            if z_err > 40:
+                logger.warning(f'start_loaded_script: Z no en posición (actual={z}, target={z_target}, error={z_err} steps)')
                 start_already = False
         if self.alpha_connect:
             alpha = self.alpha_driver.encoder_position.value
-            if alpha - self.loaded_route_alpha[0][1] > 40: # si estamos a menos de 40 pasos se acepta
+            alpha_target = self.loaded_route_alpha[0][1]
+            alpha_err = abs(alpha - alpha_target)
+            if alpha_err > 40:
+                logger.warning(f'start_loaded_script: Alpha no en posición (actual={alpha}, target={alpha_target}, error={alpha_err} steps)')
                 start_already = False
-        
-        if not start_already: # en caso de que alguno de los tres ejes no cumpla con la restriccion, se retorna sin ejecutar el movimiento
-            print('Not quite there yet...')
+
+        if not start_already:
+            logger.error('start_loaded_script: Robot no está en posición de inicio. Abortando.')
             return
         
         # en caso contrario, se ejecuta
