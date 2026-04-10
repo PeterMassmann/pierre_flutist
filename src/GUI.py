@@ -25,6 +25,17 @@ from src.plots.plot_window import LivePlotWindow, PassivePlotWindow
 
 from src.forms.forms import PointForm, VibratoForm, windows_vibrato, FilterForm, filter_windows, filter_choices, FuncTableForm, NoteForm, DurationForm, CorrectionForm, ScaleTimeForm, SettingsForm, TrillForm, StatesFromNotesForm, SurfacePointForm, TonguePointForm
 
+# --- Constantes visuales (coherentes con theme.qss) ---
+PLOT_BG = '#FFFFFF'
+COLOR_REF = '#2962FF'       # azul primario - curvas de referencia
+COLOR_MEAS = '#00C853'      # verde acento - mediciones reales
+COLOR_POINT = (0, 200, 83, 255)      # verde - puntos de trayectoria
+COLOR_VIBRATO = (211, 47, 47, 255)   # rojo - marcadores de vibrato
+COLOR_FILTER = (41, 98, 255, 255)    # azul primario - marcadores de filtro
+COLOR_CURSOR = '#AB47BC'    # púrpura - cursor temporal
+POINT_SIZE = 10
+CURVE_WIDTH = 2
+
 
 class StartUpWindow(QSplashScreen, StartWindow):
     """
@@ -112,24 +123,24 @@ class Window(QMainWindow, PlotWindow):
         self.playing = threading.Event() # evento para ejecutar una partitura (sin bloquear el thread principal). Se usa para comunicar al thread si el usuario decide parar la ejecución apretando el botón de stop
 
         ## se tienen 5 graphicsView para insertar los distintos graficos de l, theta, offset, flow y notas
-        self.graphicsView.setBackground('w') # fondo blanco
-        self.graphicsView_2.setBackground('w')
-        self.graphicsView_3.setBackground('w')
-        self.graphicsView_4.setBackground('w')
-        self.graphicsView_5.setBackground('w')
-        self.graphicsView_6.setBackground('w')
-        self.graphicsView_7.setBackground('w')
+        self.graphicsView.setBackground(PLOT_BG) # fondo blanco
+        self.graphicsView_2.setBackground(PLOT_BG)
+        self.graphicsView_3.setBackground(PLOT_BG)
+        self.graphicsView_4.setBackground(PLOT_BG)
+        self.graphicsView_5.setBackground(PLOT_BG)
+        self.graphicsView_6.setBackground(PLOT_BG)
+        self.graphicsView_7.setBackground(PLOT_BG)
         self.graphicsView_8 = InteractivePlotWidget(self.app, self)
         self.verticalLayout.addWidget(self.graphicsView_8)
 
         ## se crean lineas verticales para representar el tiempo actual. Lo llamo cursor en adelante, al moverlo se indica la parte de la partitura en donde se quiere empezar a tocar y cuando se ejecuta una cancion el cursor va avanzando en la partitura. Puede moverse con un slider que se encuentra abajo de los 5 graphicsView
-        self.rule = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen('m', width=2), label='t')
-        self.rule2 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen('m', width=2), label='t')
-        self.rule3 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen('m', width=2), label='t')
-        self.rule4 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen('m', width=2), label='t')
-        self.rule5 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen('m', width=2), label='t')
-        self.rule6 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen('m', width=2), label='t')
-        self.rule7 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen('m', width=2), label='t')
+        self.rule = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen(COLOR_CURSOR, width=2), label='t')
+        self.rule2 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen(COLOR_CURSOR, width=2), label='t')
+        self.rule3 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen(COLOR_CURSOR, width=2), label='t')
+        self.rule4 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen(COLOR_CURSOR, width=2), label='t')
+        self.rule5 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen(COLOR_CURSOR, width=2), label='t')
+        self.rule6 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen(COLOR_CURSOR, width=2), label='t')
+        self.rule7 = pg.InfiniteLine(pos=0, angle=90, pen=pg.mkPen(COLOR_CURSOR, width=2), label='t')
         self.graphicsView.addItem(self.rule)
         self.graphicsView_2.addItem(self.rule2)
         self.graphicsView_3.addItem(self.rule3)
@@ -139,138 +150,138 @@ class Window(QMainWindow, PlotWindow):
         self.graphicsView_7.addItem(self.rule7)
         
         ## 1: jet-lenght
-        self.func1 = pg.PlotCurveItem(pen=pg.mkPen('b', width=2)) # creamos la curva que representa la referencia para l
+        self.func1 = pg.PlotCurveItem(pen=pg.mkPen(COLOR_REF, width=CURVE_WIDTH)) # creamos la curva que representa la referencia para l
         self.func1.setClickable(10) # la hacemos clickeable para interactuar más facil con ella (para agregar puntos)
         self.func1.sigClicked.connect(self.onCurveClicked) # ejecutamos la funcion onCurveClicked cuando se hace click sobre la curva.  
         self.graphicsView.addItem(self.func1) # la agregamos al graphicsView
         self.graphicsView.setLabel('left', 'l', units='mm') # le ponemos nombre y unidad al eje y
 
-        self.r_real = pg.PlotCurveItem(pen=pg.mkPen('g', width=2)) # curva que representará la medición de l a partir de los encoders de los motores. Esta curva solo será ploteada cuando se este ejecutando una partitura
+        self.r_real = pg.PlotCurveItem(pen=pg.mkPen(COLOR_MEAS, width=CURVE_WIDTH)) # curva que representará la medición de l a partir de los encoders de los motores. Esta curva solo será ploteada cuando se este ejecutando una partitura
         self.graphicsView.addItem(self.r_real)
 
-        self.scatter1 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(30, 255, 35, 255)) # este primer scatter tiene los puntos que definen las posiciones por donde pasa la curva de referencia para l.
+        self.scatter1 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_POINT)) # este primer scatter tiene los puntos que definen las posiciones por donde pasa la curva de referencia para l.
         self.scatter1.sigClicked.connect(self.onPointsClicked) # hacemos que los puntos sean clickeables para interactuar mas facil con ellos. Al hacerles click se despliega un menu que permite mover los puntos (de forma dinamica), editarlos o borrarlos 
         self.graphicsView.addItem(self.scatter1)
 
-        self.vibscatter1 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(255, 35, 35, 255)) # el segundo scatter tiene los puntos donde se comienza un vibrato. Estos son rojos.
+        self.vibscatter1 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_VIBRATO)) # el segundo scatter tiene los puntos donde se comienza un vibrato. Estos son rojos.
         self.vibscatter1.sigClicked.connect(self.onVibratoClicked) # los hacemos clickeables, funcionan parecido a los puntos de la trayectoria
         self.graphicsView.addItem(self.vibscatter1)
 
-        self.filscatter1 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(35, 35, 255, 255)) # el tercer scatter tiene los puntos donde se agregan filtros. Estos son azules.
+        self.filscatter1 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_FILTER)) # el tercer scatter tiene los puntos donde se agregan filtros. Estos son azules.
         self.filscatter1.sigClicked.connect(self.onFilterClicked) # nuevamente los hacemos clickeables y funcionan parecido a los otros dos
         self.graphicsView.addItem(self.filscatter1)
 
         ## Se repiten estas mismas curvas y scatters para cada uno de los graficos
         ## 2: theta
-        self.func2 = pg.PlotCurveItem(pen=pg.mkPen('b', width=2))
+        self.func2 = pg.PlotCurveItem(pen=pg.mkPen(COLOR_REF, width=CURVE_WIDTH))
         self.func2.setClickable(10)
         self.func2.sigClicked.connect(self.onCurveClicked2)
         self.graphicsView_2.addItem(self.func2)
         self.graphicsView_2.setLabel('left', u"\u03b8", units='°')
 
-        self.theta_real = pg.PlotCurveItem(pen=pg.mkPen('g', width=2))
+        self.theta_real = pg.PlotCurveItem(pen=pg.mkPen(COLOR_MEAS, width=CURVE_WIDTH))
         self.graphicsView_2.addItem(self.theta_real)
         
-        self.scatter2 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(30, 255, 35, 255))
+        self.scatter2 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_POINT))
         self.scatter2.sigClicked.connect(self.onPointsClicked2)
         self.graphicsView_2.addItem(self.scatter2)
 
-        self.vibscatter2 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(255, 35, 35, 255))
+        self.vibscatter2 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_VIBRATO))
         self.vibscatter2.sigClicked.connect(self.onVibratoClicked2)
         self.graphicsView_2.addItem(self.vibscatter2)
 
-        self.filscatter2 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(35, 35, 255, 255))
+        self.filscatter2 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_FILTER))
         self.filscatter2.sigClicked.connect(self.onFilterClicked2)
         self.graphicsView_2.addItem(self.filscatter2)
 
         ## 3: offset
-        self.func3 = pg.PlotCurveItem(pen=pg.mkPen('b', width=2))
+        self.func3 = pg.PlotCurveItem(pen=pg.mkPen(COLOR_REF, width=CURVE_WIDTH))
         self.func3.setClickable(10)
         self.func3.sigClicked.connect(self.onCurveClicked3)
         self.graphicsView_3.addItem(self.func3)
         self.graphicsView_3.setLabel('left', "Offset", units='mm')
 
-        self.offset_real = pg.PlotCurveItem(pen=pg.mkPen('g', width=2))
+        self.offset_real = pg.PlotCurveItem(pen=pg.mkPen(COLOR_MEAS, width=CURVE_WIDTH))
         self.graphicsView_3.addItem(self.offset_real)
         
-        self.scatter3 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(30, 255, 35, 255))
+        self.scatter3 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_POINT))
         self.scatter3.sigClicked.connect(self.onPointsClicked3)
         self.graphicsView_3.addItem(self.scatter3)
 
-        self.vibscatter3 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(255, 35, 35, 255))
+        self.vibscatter3 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_VIBRATO))
         self.vibscatter3.sigClicked.connect(self.onVibratoClicked3)
         self.graphicsView_3.addItem(self.vibscatter3)
 
-        self.filscatter3 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(35, 35, 255, 255))
+        self.filscatter3 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_FILTER))
         self.filscatter3.sigClicked.connect(self.onFilterClicked3)
         self.graphicsView_3.addItem(self.filscatter3)
 
         ## 4: flow
-        self.func4 = pg.PlotCurveItem(pen=pg.mkPen('b', width=2))
+        self.func4 = pg.PlotCurveItem(pen=pg.mkPen(COLOR_REF, width=CURVE_WIDTH))
         self.func4.setClickable(10)
         self.func4.sigClicked.connect(self.onCurveClicked4)
         self.graphicsView_4.addItem(self.func4)
         self.graphicsView_4.setLabel('left', "Flow", units='SLPM')
 
-        self.flow_real = pg.PlotCurveItem(pen=pg.mkPen('g', width=2))
+        self.flow_real = pg.PlotCurveItem(pen=pg.mkPen(COLOR_MEAS, width=CURVE_WIDTH))
         self.graphicsView_4.addItem(self.flow_real)
 
-        self.scatter4 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(30, 255, 35, 255))
+        self.scatter4 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_POINT))
         self.scatter4.sigClicked.connect(self.onPointsClicked4)
         self.graphicsView_4.addItem(self.scatter4)
 
-        self.vibscatter4 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(255, 35, 35, 255))
+        self.vibscatter4 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_VIBRATO))
         self.vibscatter4.sigClicked.connect(self.onVibratoClicked4)
         self.graphicsView_4.addItem(self.vibscatter4)
 
-        self.filscatter4 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(35, 35, 255, 255))
+        self.filscatter4 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_FILTER))
         self.filscatter4.sigClicked.connect(self.onFilterClicked4)
         self.graphicsView_4.addItem(self.filscatter4)
 
         ## 5: notas
         ## el grafico de las notas, a diferencia de los demas, no tiene el scatter de los filtros, y el del vibrato funciona distinto (se reemplaza por trill)
-        self.func5 = pg.PlotCurveItem(pen=pg.mkPen('b', width=2))
+        self.func5 = pg.PlotCurveItem(pen=pg.mkPen(COLOR_REF, width=CURVE_WIDTH))
         self.func5.setClickable(10)
         self.func5.sigClicked.connect(self.onCurveClicked5)
         self.graphicsView_5.addItem(self.func5)
         self.graphicsView_5.setLabel('left', "Notes", units='n')
         self.graphicsView_5.getAxis('left').setTicks([dict_notes.items()])
 
-        self.freq_real = pg.PlotCurveItem(pen=pg.mkPen('g', width=2))
+        self.freq_real = pg.PlotCurveItem(pen=pg.mkPen(COLOR_MEAS, width=CURVE_WIDTH))
         self.graphicsView_5.addItem(self.freq_real)
         
-        self.scatter5 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(30, 255, 35, 255))
+        self.scatter5 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_POINT))
         self.scatter5.sigClicked.connect(self.onPointsClicked5)
         self.graphicsView_5.addItem(self.scatter5)
 
         self.horizontalSlider.valueChanged.connect(self.move_coursor)
-        self.vibscatter5 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(255, 35, 35, 255))
+        self.vibscatter5 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_VIBRATO))
         self.vibscatter5.sigClicked.connect(self.onVibratoClicked5)
         self.graphicsView_5.addItem(self.vibscatter5)
 
         ## 6: lips surface
         ## el grafico de la apertura de los labios no tiene vibrato ni filtros
-        self.func6 = pg.PlotCurveItem(pen=pg.mkPen('b', width=2))
+        self.func6 = pg.PlotCurveItem(pen=pg.mkPen(COLOR_REF, width=CURVE_WIDTH))
         self.func6.setClickable(10)
         self.func6.sigClicked.connect(self.onCurveClicked6)
         self.graphicsView_6.addItem(self.func6)
         self.graphicsView_6.setLabel('left', "Lips Aperture", units='n')
         #self.graphicsView_6.getAxis('left').setTicks([i for i in range(32)])
         
-        self.scatter6 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(30, 255, 35, 255))
+        self.scatter6 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_POINT))
         self.scatter6.sigClicked.connect(self.onPointsClicked6)
         self.graphicsView_6.addItem(self.scatter6)
 
         ## 7: tongue
         ## el grafico de la lengua no tiene vibrato ni filtros
-        self.func7 = pg.PlotCurveItem(pen=pg.mkPen('b', width=2))
+        self.func7 = pg.PlotCurveItem(pen=pg.mkPen(COLOR_REF, width=CURVE_WIDTH))
         self.func7.setClickable(10)
         self.func7.sigClicked.connect(self.onCurveClicked7)
         self.graphicsView_7.addItem(self.func7)
         self.graphicsView_7.setLabel('left', "Tongue", units='n')
         #self.graphicsView_7.getAxis('left').setTicks([i for i in range(4)])
         
-        self.scatter7 = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(30, 255, 35, 255))
+        self.scatter7 = pg.ScatterPlotItem(size=POINT_SIZE, brush=pg.mkBrush(*COLOR_POINT))
         self.scatter7.sigClicked.connect(self.onPointsClicked7)
         self.graphicsView_7.addItem(self.scatter7)
 
@@ -364,15 +375,23 @@ class Window(QMainWindow, PlotWindow):
         self.graphicsView_7.scene().sigMouseClicked.connect(self.mouse_clicked7)
         self.graphicsView_7.scene().sigMouseMoved.connect(self.mouse_moved7)
 
-        ## conectamos los botones a sus funciones
-        self.statesFromNotesButton.clicked.connect(self.get_states_from_notes) # boton para crear trayectorias en cada uno de los cuatro primeros ejes a partir de las notas.
-        self.changeDurationButton.clicked.connect(self.change_score_duration) # para cambiar el largo de la partitura. Inicialmente es de 20 segundos
-        self.addCorrectionButton.clicked.connect(self.add_correction) # para agregar correcciones generales a los distintos ejes (desplazar todo un eje en el tiempo o en el eje y) 
-        self.scaleTimeButton.clicked.connect(self.scale_time) # para escalar el tiempo (comprimir o alargar la partitura)
-        self.seeMotorRefsButton.clicked.connect(self.see_motor_refs) # para visualizar las referencias en el espacio de las junturas. Esta funcion abre una ventana especial con los graficos de las posiciones y velocidades para cada motor a partir de la partitura que se escribió.
-        self.manualControlButton.clicked.connect(self.open_manual_control) # para abrir la ventana que tiene los controles para mover el robot manualmente. 
-        self.psControlButton.clicked.connect(self.ps_control) # ejecuta el script para usar los controles de ps_move
-        self.softStopButton.clicked.connect(self.soft_stop) # soft stop de los motores 
+        ## conectamos los botones a sus funciones y agregamos tooltips
+        self.statesFromNotesButton.clicked.connect(self.get_states_from_notes)
+        self.statesFromNotesButton.setToolTip("Generar trayectorias (l, θ, offset, flow) a partir de las notas definidas")
+        self.changeDurationButton.clicked.connect(self.change_score_duration)
+        self.changeDurationButton.setToolTip("Cambiar la duración total de la partitura")
+        self.addCorrectionButton.clicked.connect(self.add_correction)
+        self.addCorrectionButton.setToolTip("Aplicar corrección (offset/escala) a un eje completo")
+        self.scaleTimeButton.clicked.connect(self.scale_time)
+        self.scaleTimeButton.setToolTip("Comprimir o expandir el tiempo de la partitura")
+        self.seeMotorRefsButton.clicked.connect(self.see_motor_refs)
+        self.seeMotorRefsButton.setToolTip("Ver referencias de posición y velocidad para cada motor (X, Z, Alpha)")
+        self.manualControlButton.clicked.connect(self.open_manual_control)
+        self.manualControlButton.setToolTip("Abrir control manual del robot (mover ejes individualmente)")
+        self.psControlButton.clicked.connect(self.ps_control)
+        self.psControlButton.setToolTip("Controlar el robot con PS Move")
+        self.softStopButton.clicked.connect(self.soft_stop)
+        self.softStopButton.setToolTip("EMERGENCIA: Detener todos los motores inmediatamente") 
         self.process_running = Event() # se usa este evento mientras se corre el script de ps move
         ## se crean algunas variables para leer la informacion obtenida del script de ps move
         self.ps_serial1 = ""
@@ -385,9 +404,12 @@ class Window(QMainWindow, PlotWindow):
         self.actionSave.triggered.connect(self.save) # guardar archivo
         self.actionSave_as.triggered.connect(self.save_as) # guardar como
         self.actionOpen.triggered.connect(self.open) # abrir
-        self.goToCoursorButton.clicked.connect(self.go_to_coursor) # mueve el robot a la posicion que se indica con el cursor (las lineas verticales en los graficos)
-        self.playButton.clicked.connect(self.play) # empieza a tocar una partitura. Solo esta activado cuando el robot se encuentra en la posicion indicada por el cursor
-        self.stopButton.clicked.connect(self.stop) # detiene la ejecucion de una partitura. Solo se activa mientras se este tocando una partitura
+        self.goToCoursorButton.clicked.connect(self.go_to_coursor)
+        self.goToCoursorButton.setToolTip("Mover el robot a la posición del cursor")
+        self.playButton.clicked.connect(self.play)
+        self.playButton.setToolTip("Ejecutar partitura desde el cursor (primero usar 'Go to cursor')")
+        self.stopButton.clicked.connect(self.stop)
+        self.stopButton.setToolTip("Detener ejecución de la partitura")
         self.stop_playing.connect(self.stop) # conectamos la señal stop_playing que se emite cuando la partitura llegó hasta el final (la emite un thread diferente al thread principal)
         self.refresh_plots_signal.connect(self.refresh_plots) # conectamos la señal refresh_plots_signal que se emite cuando se tienen que actualizar uno o varios gráficos desde un thread distinto al principal
         self.clearPlotButton.clicked.connect(self.clear_plot) # para limpiar un grafico (borrar las mediciones obtenidas durante una ejecucion)

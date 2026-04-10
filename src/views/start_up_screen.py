@@ -15,9 +15,7 @@ class Ui_Form(object):
     def setupUi(self, Form):
         Form.setObjectName("Form")
         Form.resize(444, 475)
-        Form.setStyleSheet("QWidget {\n"
-"        background-color: #BDBDD7;\n"
-"    }")
+        Form.setStyleSheet("")  # tema global se aplica desde main.py
         self.gridLayout = QtWidgets.QGridLayout(Form)
         self.gridLayout.setObjectName("gridLayout")
         spacerItem = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
@@ -37,18 +35,7 @@ class Ui_Form(object):
         self.label.setObjectName("label")
         self.gridLayout.addWidget(self.label, 1, 1, 1, 1)
         self.progressBar = QtWidgets.QProgressBar(Form)
-        self.progressBar.setStyleSheet("QProgressBar {\n"
-"        border: 2px solid grey;\n"
-"        border-radius: 5px;\n"
-"        background-color: #f0f0f0;\n"
-"        height: 20px;\n"
-"        text-align: center;\n"
-"    }\n"
-"    \n"
-"    QProgressBar::chunk {\n"
-"        background-color: #00C853;\n"
-"        width: 20px;\n"
-"    }")
+        self.progressBar.setStyleSheet("")  # tema global
         self.progressBar.setProperty("value", 0)
         self.progressBar.setObjectName("progressBar")
         self.gridLayout.addWidget(self.progressBar, 3, 0, 1, 3)

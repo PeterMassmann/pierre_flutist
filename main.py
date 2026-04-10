@@ -1,4 +1,5 @@
 import sys
+import os
 from PyQt5.QtWidgets import QApplication
 from multiprocessing import Process, Event, Value, Pipe, Manager
 from src.GUI import StartUpWindow, Window
@@ -7,6 +8,12 @@ from time import time, perf_counter, sleep
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+
+    ## Cargar tema visual
+    theme_path = os.path.join(os.path.dirname(__file__), "src", "theme.qss")
+    if os.path.exists(theme_path):
+        with open(theme_path, "r") as f:
+            app.setStyleSheet(f.read())
 
     ## Primero abrimos una ventana de carga que se va a ir actualizando a medida que se inician los distintos procesos
     pipe2pierre, pierre_pipe = Pipe()
