@@ -1,0 +1,1354 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>750</width>
+    <height>642</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="2" column="1">
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Apply|QDialogButtonBox::Cancel|QDialogButtonBox::Ok|QDialogButtonBox::RestoreDefaults</set>
+     </property>
+     <property name="centerButtons">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QPushButton" name="storeSettings">
+     <property name="text">
+      <string>Store Settings</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0" colspan="2">
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="tab">
+      <attribute name="title">
+       <string>Flute Position</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="1" column="0" colspan="2">
+        <widget class="QLabel" name="image_flute_pos">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="scaledContents">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_2">
+         <property name="whatsThis">
+          <string>Z position in the system of reference showed in the picture, where 0,0 is in the upper left point of operation</string>
+         </property>
+         <property name="text">
+          <string>Z_f</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QDoubleSpinBox" name="zFlutePos">
+         <property name="maximum">
+          <double>300.000000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QDoubleSpinBox" name="xFlutePos">
+         <property name="maximum">
+          <double>300.000000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label">
+         <property name="whatsThis">
+          <string>X position in the system of reference showed in the picture, where 0,0 is in the upper left point of operation</string>
+         </property>
+         <property name="text">
+          <string>X_f</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0" colspan="2">
+        <widget class="QLabel" name="label_60">
+         <property name="text">
+          <string>Set the absolute position of the flute respect to the origin found in the homing routine</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_6">
+      <attribute name="title">
+       <string>Frequency Detection</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_9">
+       <item row="3" column="0" colspan="2">
+        <widget class="QGroupBox" name="YINGroupBox">
+         <property name="whatsThis">
+          <string extracomment="YIN is an autocorrelation based method for fundamental frequency estimation 1. First, a normalized difference function is computed over short (overlapping) frames of audio. Next, the first minimum in the difference function below trough_threshold is selected as an estimate of the signal’s period. Finally, the estimated period is refined using parabolic interpolation before converting into the corresponding frequency."/>
+         </property>
+         <property name="title">
+          <string>YIN</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_7">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_35">
+            <property name="whatsThis">
+             <string>minimum frequency in Hertz. The recommended minimum is ~65 Hz though lower values may be feasible.</string>
+            </property>
+            <property name="text">
+             <string>fmin</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QDoubleSpinBox" name="YINfmin">
+            <property name="maximum">
+             <double>4000.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>65.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QLabel" name="label_39">
+            <property name="whatsThis">
+             <string>number of audio samples between adjacent YIN predictions. If None, defaults to frame_length // 4.</string>
+            </property>
+            <property name="text">
+             <string>hop_length</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QSpinBox" name="YINhop_length">
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="value">
+             <number>512</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_36">
+            <property name="whatsThis">
+             <string>maximum frequency in Hertz. The recommended maximum is ~2093 Hz though higher values may be feasible.</string>
+            </property>
+            <property name="text">
+             <string>fmax</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QDoubleSpinBox" name="YINfmax">
+            <property name="maximum">
+             <double>4000.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>2093.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QLabel" name="label_40">
+            <property name="whatsThis">
+             <string>absolute threshold for peak estimation.</string>
+            </property>
+            <property name="text">
+             <string>trough_threshold</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <widget class="QDoubleSpinBox" name="YINtrough_threshold">
+            <property name="decimals">
+             <number>5</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_37">
+            <property name="whatsThis">
+             <string>length of the frames in samples. By default, frame_length=2048 corresponds to a time scale of about 93 ms at a sampling rate of 22050 Hz.</string>
+            </property>
+            <property name="text">
+             <string>frame_length</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QSpinBox" name="YINframe_length">
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="value">
+             <number>2048</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QCheckBox" name="YINcenter">
+            <property name="whatsThis">
+             <string>If True, the signal y is padded so that frame D[:, t] is centered at y[t * hop_length]. If False, then D[:, t] begins at y[t * hop_length]. Defaults to True, which simplifies the alignment of D onto a time grid by means of librosa.core.frames_to_samples.</string>
+            </property>
+            <property name="text">
+             <string>center</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_38">
+            <property name="whatsThis">
+             <string>length of the window for calculating autocorrelation in samples. If None, defaults to frame_length // 2</string>
+            </property>
+            <property name="text">
+             <string>win_length</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QSpinBox" name="YINwin_length">
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="value">
+             <number>1024</number>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="2">
+           <widget class="QLabel" name="label_56">
+            <property name="whatsThis">
+             <string>If center=True, this argument is passed to np.pad for padding the edges of the signal y. By default (pad_mode=&quot;constant&quot;), y is padded on both sides with zeros. If center=False, this argument is ignored. .. see also:: np.pad</string>
+            </property>
+            <property name="text">
+             <string>pad_mode</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="3">
+           <widget class="QComboBox" name="YINpad_mode">
+            <item>
+             <property name="text">
+              <string>constant</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>edge</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>empty</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>linear_ramp</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>maximum</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>mean</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>median</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>minimum</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>reflect</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>symmetric</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>wrap</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="frequencyDetectionMethod">
+         <item>
+          <property name="text">
+           <string>YIN</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>pYIN</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_41">
+         <property name="text">
+          <string>Detection method used</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="2">
+        <widget class="QGroupBox" name="pYINGroupBox">
+         <property name="whatsThis">
+          <string extracomment="pYIN 1 is a modificatin of the YIN algorithm 2 for fundamental frequency (F0) estimation. In the first step of pYIN, F0 candidates and their probabilities are computed using the YIN algorithm. In the second step, Viterbi decoding is used to estimate the most likely F0 sequence and voicing flags."/>
+         </property>
+         <property name="title">
+          <string>pYIN</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_8">
+          <item row="5" column="1">
+           <widget class="QSpinBox" name="pYINwin_length">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="value">
+             <number>1024</number>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_46">
+            <property name="whatsThis">
+             <string>length of the frames in samples. By default, frame_length=2048 corresponds to a time scale of about 93 ms at a sampling rate of 22050 Hz.</string>
+            </property>
+            <property name="text">
+             <string>frame_length</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_44">
+            <property name="whatsThis">
+             <string>minimum frequency in Hertz. The recommended minimum is ~65 Hz though lower values may be feasible.</string>
+            </property>
+            <property name="text">
+             <string>fmin</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QSpinBox" name="pYINframe_length">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="value">
+             <number>2048</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="4">
+           <widget class="QDoubleSpinBox" name="pYINresolution">
+            <property name="minimum">
+             <double>0.010000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>0.990000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.050000000000000</double>
+            </property>
+            <property name="value">
+             <double>0.500000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="0">
+           <widget class="QLabel" name="label_43">
+            <property name="whatsThis">
+             <string>number of audio samples between adjacent YIN predictions. If None, defaults to frame_length // 4.</string>
+            </property>
+            <property name="text">
+             <string>hop_length</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QDoubleSpinBox" name="pYINfmax">
+            <property name="maximum">
+             <double>4000.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>2093.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="14" column="0" colspan="2">
+           <widget class="QCheckBox" name="pYINcenter">
+            <property name="whatsThis">
+             <string>If True, the signal y is padded so that frame D[:, t] is centered at y[t * hop_length]. If False, then D[:, t] begins at y[t * hop_length]. Defaults to True, which simplifies the alignment of D onto a time grid by means of librosa.core.frames_to_samples.</string>
+            </property>
+            <property name="text">
+             <string>center</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_45">
+            <property name="whatsThis">
+             <string>maximum frequency in Hertz. The recommended maximum is ~2093 Hz though higher values may be feasible.</string>
+            </property>
+            <property name="text">
+             <string>fmax</string>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="0">
+           <widget class="QLabel" name="label_47">
+            <property name="whatsThis">
+             <string>number of thresholds for peak estimation.</string>
+            </property>
+            <property name="text">
+             <string>n_thresholds</string>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="1">
+           <widget class="QDoubleSpinBox" name="pYINbeta_parameter_b">
+            <property name="minimum">
+             <double>0.010000000000000</double>
+            </property>
+            <property name="value">
+             <double>2.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QDoubleSpinBox" name="pYINfmin">
+            <property name="maximum">
+             <double>4000.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>65.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="1">
+           <widget class="QSpinBox" name="pYINn_thresholds">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="4">
+           <widget class="QDoubleSpinBox" name="pYINmax_transition_rate">
+            <property name="minimum">
+             <double>0.010000000000000</double>
+            </property>
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="label_42">
+            <property name="whatsThis">
+             <string>length of the window for calculating autocorrelation in samples. If None, defaults to frame_length // 2</string>
+            </property>
+            <property name="text">
+             <string>win_length</string>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="1">
+           <widget class="QSpinBox" name="pYINhop_length">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="value">
+             <number>512</number>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="0">
+           <widget class="QLabel" name="label_48">
+            <property name="whatsThis">
+             <string>shape parameters for the beta distribution prior over thresholds.</string>
+            </property>
+            <property name="text">
+             <string>beta_parameter_a</string>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="1">
+           <widget class="QDoubleSpinBox" name="pYINbeta_parameter_a">
+            <property name="minimum">
+             <double>0.010000000000000</double>
+            </property>
+            <property name="value">
+             <double>2.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QLabel" name="label_51">
+            <property name="whatsThis">
+             <string>maximum pitch transition rate in octaves per second.</string>
+            </property>
+            <property name="text">
+             <string>max_transition_rate</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="3">
+           <widget class="QLabel" name="label_50">
+            <property name="whatsThis">
+             <string>Resolution of the pitch bins. 0.01 corresponds to cents.</string>
+            </property>
+            <property name="text">
+             <string>resolution</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="4">
+           <widget class="QDoubleSpinBox" name="pYINboltzmann_parameter">
+            <property name="minimum">
+             <double>0.010000000000000</double>
+            </property>
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="3">
+           <widget class="QLabel" name="label_49">
+            <property name="whatsThis">
+             <string>shape parameter for the Boltzmann distribution prior over troughs. Larger values will assign more mass to smaller periods.</string>
+            </property>
+            <property name="text">
+             <string>boltzmann_parameter</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="3">
+           <widget class="QLabel" name="label_52">
+            <property name="whatsThis">
+             <string>probability of switching from voiced to unvoiced or vice versa.</string>
+            </property>
+            <property name="text">
+             <string>switch_prob</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="4">
+           <widget class="QDoubleSpinBox" name="pYINswitch_prob">
+            <property name="minimum">
+             <double>0.010000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>0.990000000000000</double>
+            </property>
+            <property name="value">
+             <double>0.500000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="3">
+           <widget class="QLabel" name="label_53">
+            <property name="whatsThis">
+             <string>maximum probability to add to global minimum if no trough is below threshold.</string>
+            </property>
+            <property name="text">
+             <string>no_trough_prob</string>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="4">
+           <widget class="QDoubleSpinBox" name="pYINno_trough_prob">
+            <property name="minimum">
+             <double>0.010000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>0.990000000000000</double>
+            </property>
+            <property name="value">
+             <double>0.500000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="3">
+           <widget class="QLabel" name="label_54">
+            <property name="whatsThis">
+             <string>default value for unvoiced frames of f0. If None, the unvoiced frames will contain a best guess value.</string>
+            </property>
+            <property name="text">
+             <string>fill_na</string>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="4">
+           <widget class="QComboBox" name="pYINfill_na">
+            <item>
+             <property name="text">
+              <string>None</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>float</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>np.nan</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="11" column="4">
+           <widget class="QDoubleSpinBox" name="pYINfill_na_float"/>
+          </item>
+          <item row="12" column="3">
+           <widget class="QLabel" name="label_55">
+            <property name="whatsThis">
+             <string>If center=True, this argument is passed to np.pad for padding the edges of the signal y. By default (pad_mode=&quot;constant&quot;), y is padded on both sides with zeros. If center=False, this argument is ignored. .. see also:: np.pad</string>
+            </property>
+            <property name="text">
+             <string>pad_mode</string>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="0">
+           <widget class="QLabel" name="label_57">
+            <property name="whatsThis">
+             <string>shape parameters for the beta distribution prior over thresholds.</string>
+            </property>
+            <property name="text">
+             <string>beta_parameter_b</string>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="3">
+           <widget class="QLabel" name="label_58">
+            <property name="whatsThis">
+             <string>default value for unvoiced frames of f0. If None, the unvoiced frames will contain a best guess value.</string>
+            </property>
+            <property name="text">
+             <string>fill_na_float</string>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="4">
+           <widget class="QComboBox" name="pYINpad_mode">
+            <item>
+             <property name="text">
+              <string>constant</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>edge</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>empty</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>linear_ramp</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>maximum</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>mean</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>median</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>minimum</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>reflect</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>symmetric</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>wrap</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_59">
+         <property name="text">
+          <string>Device used</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QComboBox" name="micDevices"/>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_2">
+      <attribute name="title">
+       <string>Flow Control</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_3">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_3">
+         <property name="text">
+          <string>Variable to control</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="flowVarToControl">
+         <item>
+          <property name="text">
+           <string>Mass Flow</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Volume Flow</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Pressure</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_4">
+         <property name="text">
+          <string>Control Loop</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QComboBox" name="flowControlLoop">
+         <item>
+          <property name="text">
+           <string>PDF</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>PD2I</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_5">
+         <property name="text">
+          <string>Kp</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QDoubleSpinBox" name="flowKp">
+         <property name="maximum">
+          <double>9999.000000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_6">
+         <property name="text">
+          <string>Ki</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QDoubleSpinBox" name="flowKi">
+         <property name="maximum">
+          <double>9999.000000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_7">
+         <property name="text">
+          <string>Kd</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QDoubleSpinBox" name="flowKd">
+         <property name="maximum">
+          <double>9999.000000000000000</double>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_3">
+      <attribute name="title">
+       <string>X Control</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_4">
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_13">
+         <property name="text">
+          <string>Kd</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_8">
+         <property name="text">
+          <string>Deceleration</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="2">
+        <widget class="QLabel" name="label_12">
+         <property name="text">
+          <string>Kd_vel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QSpinBox" name="X_prop_value">
+         <property name="maximum">
+          <number>50</number>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_15">
+         <property name="text">
+          <string>Acceleration</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="3">
+        <widget class="QDoubleSpinBox" name="X_kd_vel_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QDoubleSpinBox" name="X_kd_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="label_14">
+         <property name="text">
+          <string>Proportional Coef</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QSpinBox" name="X_acc_value">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>5000</number>
+         </property>
+         <property name="value">
+          <number>400</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_10">
+         <property name="text">
+          <string>Ki</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="3">
+        <widget class="QDoubleSpinBox" name="X_ki_vel_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QSpinBox" name="X_dec_value">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>5000</number>
+         </property>
+         <property name="value">
+          <number>400</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QDoubleSpinBox" name="X_ki_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2">
+        <widget class="QLabel" name="label_16">
+         <property name="text">
+          <string>Ki_vel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_11">
+         <property name="text">
+          <string>Kp</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QLabel" name="label_9">
+         <property name="text">
+          <string>Kp_vel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="3">
+        <widget class="QDoubleSpinBox" name="X_kp_vel_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QDoubleSpinBox" name="X_kp_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0" colspan="4">
+        <widget class="QLabel" name="control_image">
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_4">
+      <attribute name="title">
+       <string>Z Control</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_5">
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_19">
+         <property name="text">
+          <string>Acceleration</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QSpinBox" name="Z_dec_value">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>5000</number>
+         </property>
+         <property name="value">
+          <number>400</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_24">
+         <property name="text">
+          <string>Ki</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="2">
+        <widget class="QLabel" name="label_17">
+         <property name="text">
+          <string>Kd_vel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="label_22">
+         <property name="text">
+          <string>Proportional Coef</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QLabel" name="label_23">
+         <property name="text">
+          <string>Kp_vel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="3">
+        <widget class="QDoubleSpinBox" name="Z_kp_vel_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QDoubleSpinBox" name="Z_ki_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QDoubleSpinBox" name="Z_kp_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_21">
+         <property name="text">
+          <string>Deceleration</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QSpinBox" name="Z_acc_value">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>5000</number>
+         </property>
+         <property name="value">
+          <number>400</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="3">
+        <widget class="QDoubleSpinBox" name="Z_ki_vel_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_20">
+         <property name="text">
+          <string>Kd</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QSpinBox" name="Z_prop_value">
+         <property name="maximum">
+          <number>50</number>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_25">
+         <property name="text">
+          <string>Kp</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QDoubleSpinBox" name="Z_kd_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2">
+        <widget class="QLabel" name="label_18">
+         <property name="text">
+          <string>Ki_vel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="3">
+        <widget class="QDoubleSpinBox" name="Z_kd_vel_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0" colspan="4">
+        <widget class="QLabel" name="control_image2">
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_5">
+      <attribute name="title">
+       <string>Alpha Control</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_6">
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_29">
+         <property name="text">
+          <string>Kd</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_28">
+         <property name="text">
+          <string>Acceleration</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QLabel" name="label_32">
+         <property name="text">
+          <string>Kp_vel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2">
+        <widget class="QLabel" name="label_27">
+         <property name="text">
+          <string>Ki_vel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="3">
+        <widget class="QDoubleSpinBox" name="A_kp_vel_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QSpinBox" name="A_acc_value">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>5000</number>
+         </property>
+         <property name="value">
+          <number>400</number>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_34">
+         <property name="text">
+          <string>Kp</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QDoubleSpinBox" name="A_ki_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QSpinBox" name="A_dec_value">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>5000</number>
+         </property>
+         <property name="value">
+          <number>400</number>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="3">
+        <widget class="QDoubleSpinBox" name="A_kd_vel_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QSpinBox" name="A_prop_value">
+         <property name="maximum">
+          <number>50</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_33">
+         <property name="text">
+          <string>Ki</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="2">
+        <widget class="QLabel" name="label_26">
+         <property name="text">
+          <string>Kd_vel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QDoubleSpinBox" name="A_kp_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QDoubleSpinBox" name="A_kd_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="label_31">
+         <property name="text">
+          <string>Proportional Coef</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="3">
+        <widget class="QDoubleSpinBox" name="A_ki_vel_value">
+         <property name="decimals">
+          <number>5</number>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_30">
+         <property name="text">
+          <string>Deceleration</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0" colspan="4">
+        <widget class="QLabel" name="control_image3">
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>Dialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>248</x>
+     <y>254</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>157</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>Dialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>316</x>
+     <y>260</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>286</x>
+     <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

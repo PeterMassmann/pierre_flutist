@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+
+# Recordings (large binary data)
+recordings/*.wav
+recordings/*.csv
+
+# Claude Code
+.claude/
+
+# 3D models (large binary files)
+src/3d_models/
+
+# Compiled UI files are regenerated
+src/views/__pycache__/
+src/forms/__pycache__/

@@ -1,0 +1,115 @@
+{
+    "route_fingers": {
+        "Fs": 100,
+        "history": [],
+        "notes": [],
+        "total_t": 20,
+        "trill": []
+    },
+    "route_flow": {
+        "Fs": 100,
+        "filters": [],
+        "history": [],
+        "points": [
+            [
+                0,
+                0
+            ]
+        ],
+        "total_t": 20,
+        "vibrato": []
+    },
+    "route_offset": {
+        "Fs": 100,
+        "filters": [],
+        "history": [],
+        "points": [
+            [
+                0,
+                0
+            ]
+        ],
+        "total_t": 20,
+        "vibrato": []
+    },
+    "route_r": {
+        "Fs": 100,
+        "filters": [],
+        "history": [],
+        "points": [
+            [
+                0,
+                10
+            ]
+        ],
+        "total_t": 20,
+        "vibrato": []
+    },
+    "route_theta": {
+        "Fs": 100,
+        "filters": [],
+        "history": [
+            [
+                "add_point",
+                [
+                    2.983305766628386,
+                    45.0
+                ]
+            ],
+            [
+                "add_point",
+                [
+                    3.8207518037232333,
+                    45.11350698149718
+                ]
+            ]
+        ],
+        "points": [
+            [
+                0,
+                45
+            ],
+            [
+                2.99,
+                45.0
+            ],
+            [
+                3.0,
+                55.0
+            ]
+        ],
+        "total_t": 20,
+        "vibrato": []
+    },
+    "route_lips": {
+        "Fs": 100,
+        "history": [],
+        "points": [
+            [
+                0,
+                31
+            ]
+        ],
+        "total_t": 20
+    },
+    "dynamics": {
+        "total_t": 20, 
+        "Fs": 100, 
+        "points": [[0, "00_default"]], 
+        "filters": [], 
+        "vibrato": [], 
+        "history": []
+    },
+    "route_tongue": {
+        "Fs": 100,
+        "history": [],
+        "points": [
+            [
+                0,
+                0
+            ]
+        ],
+        "total_t": 20
+    },
+    "timestamp": "31/05/2023 13:27:49"
+}
