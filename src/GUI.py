@@ -461,6 +461,9 @@ class Window(QMainWindow, PlotWindow):
 
         self.setWindowTitle("Pierre - Flutist Robot")
 
+        # Actualizar LED de conexión según el estado inicial
+        self._set_led(self._led_connected, self.connected)
+
         # Barra de estado inferior con información contextual
         self._status_space_label = QLabel("Espacio: Tarea")
         self._status_file_label = QLabel("Sin guardar")
@@ -505,6 +508,17 @@ class Window(QMainWindow, PlotWindow):
 
         self.verticalLayout_2.addWidget(_make_separator())
 
+        # --- Panel de estado (LEDs) ---
+        self.verticalLayout_2.addWidget(_make_group_label("ESTADO"))
+        self._led_connected = self._make_led("Conectado", active=False)
+        self._led_in_position = self._make_led("En posición", active=False)
+        self._led_playing = self._make_led("Ejecutando", active=False)
+        self.verticalLayout_2.addWidget(self._led_connected)
+        self.verticalLayout_2.addWidget(self._led_in_position)
+        self.verticalLayout_2.addWidget(self._led_playing)
+
+        self.verticalLayout_2.addWidget(_make_separator())
+
         # --- Grupo: Transporte ---
         self.verticalLayout_2.addWidget(_make_group_label("TRANSPORTE"))
         self.verticalLayout_2.addWidget(self.goToCoursorButton)
@@ -542,6 +556,33 @@ class Window(QMainWindow, PlotWindow):
 
         # Spacer al fondo para empujar todo arriba
         self.verticalLayout_2.addStretch(1)
+
+    def _make_led(self, text, active=False):
+        """Crea un QLabel con indicador LED (círculo de color + texto)."""
+        lbl = QLabel(f"  {text}")
+        color = "#00C853" if active else "#BDBDBD"
+        lbl.setStyleSheet(
+            f"padding: 2px 4px; font-size: 9pt; color: #212121; "
+            f"border: none; background: transparent;"
+        )
+        lbl.setProperty("led_color", color)
+        # Usamos un prefijo Unicode como indicador visual
+        lbl.setText(f"\u25CF  {text}")
+        lbl.setStyleSheet(
+            f"padding: 2px 4px; font-size: 9pt; color: {color}; "
+            f"border: none; background: transparent; font-weight: 600;"
+        )
+        return lbl
+
+    def _set_led(self, led, active):
+        """Actualiza el color de un LED indicator."""
+        text = led.text()[3:]  # quitar el prefijo "●  "
+        color = "#00C853" if active else "#BDBDBD"
+        led.setText(f"\u25CF  {text}")
+        led.setStyleSheet(
+            f"padding: 2px 4px; font-size: 9pt; color: {color}; "
+            f"border: none; background: transparent; font-weight: 600;"
+        )
 
     def start_free_recording(self):
         self.free_recording = not self.free_recording
@@ -934,28 +975,32 @@ class Window(QMainWindow, PlotWindow):
         x = threading.Thread(target=self.wait_musician_is_in_place, args=(desired_state,)) # creamos un thread que revisa cuando el robot llega al estado inicial. Una vez que llega a posición es posible pedirle que empiece a tocar la partitura
         x.start()
     
-    def wait_musician_is_in_place(self, desired_state): # se corre como thread, espera a que el robot se encuentre en desired_state para activar el boton de play
+    def wait_musician_is_in_place(self, desired_state):
         if self.connected:
             while True:
-                if abs(self.data['x'][-1] - desired_state.x) < 0.5 and abs(self.data['z'][-1] - desired_state.z) < 0.5  and abs(self.data['alpha'][-1] - desired_state.alpha) < 1: # esperamos que el robot se acerque a la posición deseada con una holgura de 0.5mm en x, 0.5mm en z y 1° en alpha
+                if abs(self.data['x'][-1] - desired_state.x) < 0.5 and abs(self.data['z'][-1] - desired_state.z) < 0.5  and abs(self.data['alpha'][-1] - desired_state.alpha) < 1:
                     self.playButton.setEnabled(True)
-                    break # se sale del loop, terminando el thread
+                    self._set_led(self._led_in_position, True)
+                    break
                 sleep(0.1)
-        else: # si el robot no esta conectado inmediatamente se activa el boton de play
+        else:
             self.playButton.setEnabled(True)
+            self._set_led(self._led_in_position, True)
 
-    def play(self): # funcion que se ejecuta al presionar el boton de play. Comienza la ejecucion de la partitura pre-cargada
-        self.playing.set() 
+    def play(self):
+        self.playing.set()
         self.clearPlotButton.setEnabled(False)
         self.startFreeRocordingButton.setEnabled(False)
-        rec = self.recordCheckBox.isChecked() # si se selecciono la opcion de grabar
-        self.musician_pipe.send(["start_loaded_script", rec]) # ordena al musico a empezar a tocar las rutas pre-cargadas
-        coursor = threading.Thread(target=self.move_coursor_and_plot, args=()) # crea un thread que se encarga del movimiento del cursor a lo largo de la partitura y de plotear el valor medido en cada eje
+        rec = self.recordCheckBox.isChecked()
+        self.musician_pipe.send(["start_loaded_script", rec])
+        coursor = threading.Thread(target=self.move_coursor_and_plot, args=())
         coursor.start()
         self.stopButton.setEnabled(True)
         self.playButton.setEnabled(False)
         self.recordCheckBox.setEnabled(False)
         self.horizontalSlider.setEnabled(False)
+        self._set_led(self._led_playing, True)
+        self._set_led(self._led_in_position, False)
     
     def move_coursor_and_plot(self): # funcion que actualiza la posicion del cursor y plotea los valores medidos de cada variable
         t, f_r, p, vib, fil = calculate_route(self.route)
@@ -1018,6 +1063,7 @@ class Window(QMainWindow, PlotWindow):
         self.stopButton.setEnabled(False) # se desactiva el stop (ya se ejecutó)
         self.clearPlotButton.setEnabled(True) # se activa el clear plot, porque hay graficos nuevos
         self.startFreeRocordingButton.setEnabled(True)
+        self._set_led(self._led_playing, False)
 
     def save_recorded_data(self): # abre un dialogo para ponerle nombre a los archivos donde se guardará la informacion y se los envia al musico.
         fname, _ = QFileDialog.getSaveFileName(self, 'Open file', self.base_path,"CSV files (*.csv)") # nombre del archivo csv con la tabla de las mediciones tomadas
