@@ -680,6 +680,18 @@ class AMCIDriver(Process):
             self.synchrostep_out_list = synchrostep_command.get_list_to_send()
             self.comm_data[self.hostname + '_out'] = self.synchrostep_out_list # se comienza el movimiento 'synchrostep' donde el motor intenta seguir el eje virtual cuya posición y velocidad se informan de forma periódica al dispositivo
 
+            # Resetear watchdog timer post-homing: el homing puede tardar segundos,
+            # y el timer se inició en __init__, así que sin reset el watchdog salta inmediatamente.
+            self.last_watchdog_time = time.perf_counter()
+            # Drenar heartbeats que se acumularon en el pipe durante homing
+            while self.musician_pipe.poll(0):
+                try:
+                    msg = self.musician_pipe.recv()
+                    if msg[0] == "heartbeat":
+                        self.last_watchdog_time = time.perf_counter()
+                except Exception:
+                    break
+
             _t_loop_prev = time.perf_counter()
             while self.running.is_set(): # en este loop se mantiene el resto del programa
                 _t_loop_start = time.perf_counter()
