@@ -397,26 +397,28 @@ class Musician(Process):
         Si el robot no se encuentra dentro de un rango del punto de inicio de la trayectoria, no se ejecuta y la funcion retorna
         """
         ## primero revisamos si estamos dentro de un rango del punto de inicio
+        # Tolerancia: 250 steps ≈ 0.5mm para X/Z (500 steps/mm), consistente con GUI
+        POSITION_TOLERANCE = 250
         start_already = True
         if self.x_connect:
             x = self.x_driver.encoder_position.value
             x_target = self.loaded_route_x[0][1]
             x_err = abs(x - x_target)
-            if x_err > 40:
-                logger.warning(f'start_loaded_script: X no en posición (actual={x}, target={x_target}, error={x_err} steps)')
+            if x_err > POSITION_TOLERANCE:
+                logger.warning(f'start_loaded_script: X no en posición (actual={x}, target={x_target}, error={x_err} steps / {x_err/500:.2f}mm)')
                 start_already = False
         if self.z_connect:
             z = self.z_driver.encoder_position.value
             z_target = self.loaded_route_z[0][1]
             z_err = abs(z - z_target)
-            if z_err > 40:
-                logger.warning(f'start_loaded_script: Z no en posición (actual={z}, target={z_target}, error={z_err} steps)')
+            if z_err > POSITION_TOLERANCE:
+                logger.warning(f'start_loaded_script: Z no en posición (actual={z}, target={z_target}, error={z_err} steps / {z_err/500:.2f}mm)')
                 start_already = False
         if self.alpha_connect:
             alpha = self.alpha_driver.encoder_position.value
             alpha_target = self.loaded_route_alpha[0][1]
             alpha_err = abs(alpha - alpha_target)
-            if alpha_err > 40:
+            if alpha_err > POSITION_TOLERANCE:
                 logger.warning(f'start_loaded_script: Alpha no en posición (actual={alpha}, target={alpha_target}, error={alpha_err} steps)')
                 start_already = False
 
