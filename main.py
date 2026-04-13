@@ -1,5 +1,6 @@
 import sys
 import os
+import atexit
 from time import time, perf_counter, sleep
 
 if __name__ == '__main__':
@@ -35,7 +36,18 @@ if __name__ == '__main__':
     connect = True
     ## Creamos el objeto Musico, que conecta a todos los dispositivos
     pierre = Musician(host, connections, event, pierre_pipe, data, fingers_connect=connect, x_connect=connect, z_connect=connect, alpha_connect=connect, flow_connect=connect, pressure_sensor_connect=connect, mic_connect=connect, home=True)
+    pierre.daemon = True
     pierre.start()
+
+    def cleanup():
+        """Asegurar que todos los procesos hijos terminen al cerrar."""
+        event.clear()
+        pierre.join(timeout=3)
+        if pierre.is_alive():
+            pierre.terminate()
+            pierre.join(timeout=2)
+
+    atexit.register(cleanup)
 
     ## Antes de abrir la ventana principal esperamos que se hayan inicializado todos los procesos asi como objetos compartidos entre ellos
     s.wait_loading()
