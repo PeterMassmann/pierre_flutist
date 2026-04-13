@@ -48,11 +48,20 @@ if __name__ == '__main__':
 
     atexit.register(cleanup)
 
+    import logging
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s [%(name)s] %(levelname)s: %(message)s')
+
     ## Antes de abrir la ventana principal esperamos que se hayan inicializado todos los procesos asi como objetos compartidos entre ellos
     s.wait_loading()
 
     ## Entonces se abre la ventana principal
-    win = Window(app, event, pipe2pierre, data, connected=connect)
-    win.show()
+    try:
+        win = Window(app, event, pipe2pierre, data, connected=connect)
+        win.show()
+    except Exception as e:
+        logging.critical(f"Error creando ventana principal: {e}", exc_info=True)
+        event.clear()
+        sys.exit(1)
 
     sys.exit(app.exec())

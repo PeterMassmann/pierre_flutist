@@ -195,8 +195,14 @@ class Musician(Process):
                 except Exception:
                     pass  # si falla el heartbeat, el watchdog del driver se encargara
                 _last_heartbeat = time.perf_counter()
-            if self.end_pipe.poll(self.interval): # esperamos por self.interval ms un mensaje de la interfaz
-                message = self.end_pipe.recv() # si hay mensaje lo recibimos y vemos que dice. El primer elemento del mensaje será un label de la operacion a realizar
+            try:
+                _has_message = self.end_pipe.poll(self.interval)
+            except (EOFError, BrokenPipeError, ConnectionResetError):
+                logger.critical('Musician: pipe con GUI roto. Deteniendo.')
+                self.stop()
+                break
+            if _has_message:
+                message = self.end_pipe.recv()
                 if message[0] == "execute_fingers_action": # si se pide un cambio de digitacion de dedos
                     self.virtual_fingers_conn.send(["merge_ref", [(0, message[1])]]) # se crea una ruta para el eje virtual de los dedos: [(0, message[1])] y se envia una solicitud de merge_ref
                 elif message[0] == "execute_lips_surface_action": # si se pide un cambio en la apertura de los labios
@@ -268,24 +274,33 @@ class Musician(Process):
                     self.flow_driver_conn.send(["change_kd", message[1]])
                 elif message[0] == "set_instrument": # instruccion de setear el instrumento. Actualmente no se usa, pero podría crearse una ventana de dialogo al principio del programa preguntando qué instrumento se quiere usar
                     self.set_instrument(message[1])
-                elif message[0] == "x_driver.ask_control": # instruccion que pide reenviar el estado actual del controlador del driver del eje x
-                    self.x_driver_conn.send(["ask_control"]) # se pregunta por el control
-                    data = self.x_driver_conn.recv()[0] # se espera la respuesta
-                    self.end_pipe.send([data]) # se reenvia la respuesta a la interfaz
-                elif message[0] == "x_driver.change_control": # instruccion de actualizar el controlador del driver x
-                    self.x_driver_conn.send(["change_control", message[1]]) # se reenvia el mensaje al driver x
-                elif message[0] == "z_driver.ask_control": # instruccion que pide reenviar el estado actual del controlador del driver del eje z
-                    self.z_driver_conn.send(["ask_control"]) # se pregunta por el control
-                    data = self.z_driver_conn.recv()[0] # se espera la respuesta
-                    self.end_pipe.send([data]) # se reenvia la respuesta a la interfaz
-                elif message[0] == "z_driver.change_control": # instruccion de actualizar el controlador del driver z
-                    self.z_driver_conn.send(["change_control", message[1]]) # se reenvia el mensaje al driver z
-                elif message[0] == "alpha_driver.ask_control": # instruccion que pide reenviar el estado actual del controlador del driver del eje alpha
-                    self.alpha_driver_conn.send(["ask_control"]) # se pregunta por el control
-                    data = self.alpha_driver_conn.recv()[0] # se espera la respuesta
-                    self.end_pipe.send([data]) # se reenvia la respuesta a la interfaz
-                elif message[0] == "alpha_driver.change_control": # instruccion de actualizar el controlador del driver alpha
-                    self.alpha_driver_conn.send(["change_control", message[1]]) # se reenvia el mensaje al driver alpha
+                elif message[0] == "x_driver.ask_control":
+                    self.x_driver_conn.send(["ask_control"])
+                    if self.x_driver_conn.poll(2.0):  # timeout 2s en vez de bloqueo infinito
+                        data = self.x_driver_conn.recv()[0]
+                        self.end_pipe.send([data])
+                    else:
+                        logger.warning('x_driver.ask_control: timeout esperando respuesta del driver')
+                elif message[0] == "x_driver.change_control":
+                    self.x_driver_conn.send(["change_control", message[1]])
+                elif message[0] == "z_driver.ask_control":
+                    self.z_driver_conn.send(["ask_control"])
+                    if self.z_driver_conn.poll(2.0):
+                        data = self.z_driver_conn.recv()[0]
+                        self.end_pipe.send([data])
+                    else:
+                        logger.warning('z_driver.ask_control: timeout esperando respuesta del driver')
+                elif message[0] == "z_driver.change_control":
+                    self.z_driver_conn.send(["change_control", message[1]])
+                elif message[0] == "alpha_driver.ask_control":
+                    self.alpha_driver_conn.send(["ask_control"])
+                    if self.alpha_driver_conn.poll(2.0):
+                        data = self.alpha_driver_conn.recv()[0]
+                        self.end_pipe.send([data])
+                    else:
+                        logger.warning('alpha_driver.ask_control: timeout esperando respuesta del driver')
+                elif message[0] == "alpha_driver.change_control":
+                    self.alpha_driver_conn.send(["change_control", message[1]])
                 elif message[0] == "change_flute_pos": # instruccion de actualizar la posicion en la que se encuentra el bisel de la flauta
                     DATA['flute_position']['X_F'] = message[1]['X_F'] # se actualiza su ubicacion
                     DATA['flute_position']['Z_F'] = message[1]['Z_F']

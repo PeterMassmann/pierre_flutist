@@ -169,3 +169,69 @@ class TestDeterminism:
 
         # Todos los resultados deben ser idénticos
         assert all(r == results[0] for r in results)
+
+
+class TestPipeBreakSafety:
+    """Tests de seguridad: verificar que pipe roto no deja eje en movimiento."""
+
+    def test_axis_stops_when_running_cleared(self):
+        """Si running se limpia, el eje virtual debe parar."""
+        running = Event()
+        running.set()
+        parent_conn, child_conn = Pipe()
+        t0 = time.perf_counter()
+        axis = VirtualAxis(running, 0.01, t0, child_conn)
+        axis.daemon = True
+        axis.start()
+        time.sleep(0.05)
+
+        # Enviar ruta larga
+        t_now = time.perf_counter() - t0
+        route = [(t_now, 0, 0), (t_now + 10.0, 100000, 10000)]
+        parent_conn.send(["merge_ref", route])
+        time.sleep(0.2)
+
+        # Limpiar running (simula shutdown)
+        running.clear()
+        axis.join(timeout=2)
+
+        # El proceso debe haber terminado
+        assert not axis.is_alive()
+
+    def test_axis_stops_safely_on_closed_pipe(self):
+        """Si el pipe se cierra, el eje virtual debe parar limpiamente (no crashear)."""
+        running = Event()
+        running.set()
+        parent_conn, child_conn = Pipe()
+        t0 = time.perf_counter()
+        axis = VirtualAxis(running, 0.01, t0, child_conn)
+        axis.daemon = True
+        axis.start()
+        time.sleep(0.05)
+
+        # Cerrar el pipe del lado del padre
+        parent_conn.close()
+        time.sleep(0.3)
+
+        # El eje debe haberse detenido limpiamente (break del loop)
+        axis.join(timeout=2)
+        assert not axis.is_alive()
+
+    def test_flow_stops_on_running_clear(self):
+        """VirtualFlow debe parar cuando running se limpia."""
+        running = Event()
+        running.set()
+        parent_conn, child_conn = Pipe()
+        t0 = time.perf_counter()
+        flow = VirtualFlow(running, 0.01, t0, child_conn)
+        flow.daemon = True
+        flow.start()
+        time.sleep(0.05)
+
+        t_now = time.perf_counter() - t0
+        parent_conn.send(["merge_ref", [(t_now, 0), (t_now + 5, 30)], 0, 0])
+        time.sleep(0.2)
+
+        running.clear()
+        flow.join(timeout=2)
+        assert not flow.is_alive()

@@ -220,17 +220,20 @@ class VirtualAxis(threading.Thread):
             if self.verbose:
                 print(t, self.pos, self.vel)
             self.update_ref(t)
-            if self.pipe_conn.poll(self.interval): # escucha si hay alguna instruccion. Si no lo hay luego de los self.interval ms avanza
-                message = self.pipe_conn.recv()
-                #print("Message received in virtual axis:", message[0])
-                if message[0] == "get_ref": # 
-                    pos, vel = self.get_ref(message[1]) 
-                elif message[0] == "update_ref": #
-                    self.update_ref(message[1])
-                elif message[0] == "merge_ref": # se envia esta instrucción desde un proceso distinto para actualizar la ruta referencia
-                    self.merge_ref(message[1])
-                elif message[0] == "stop": # se envia esta instrucción desde un proceso distinto para detener el eje (soft stop)
-                    self.stop()
+            try:
+                if self.pipe_conn.poll(self.interval): # escucha si hay alguna instruccion
+                    message = self.pipe_conn.recv()
+                    if message[0] == "get_ref":
+                        pos, vel = self.get_ref(message[1])
+                    elif message[0] == "update_ref":
+                        self.update_ref(message[1])
+                    elif message[0] == "merge_ref":
+                        self.merge_ref(message[1])
+                    elif message[0] == "stop":
+                        self.stop()
+            except (EOFError, BrokenPipeError, ConnectionResetError, OSError):
+                self.stop()  # pipe roto → frenar eje
+                break
 
     def get_ref(self, t): # actualiza la posición y velocidad para el tiempo actual de acuerdo a la ruta referencia
         if self.ref[-1][0] > t: # si la ruta esta definida hasta un t_final > t_actual
@@ -719,35 +722,41 @@ class AMCIDriver(Process):
                     except Exception as e:
                         logger.critical(f'{self.hostname} Error inesperado en set_output: {e}', exc_info=True)
                 
-                if self.musician_pipe.poll(): # se revisa si hay alguna instrucción desde el proceso del musico
-                    message = self.musician_pipe.recv()
-                    if self.verbose:
-                        print("Message received in", self.hostname, message)
-                    if message[0] == "emergency_stop": # parada de emergencia inmediata
-                        logger.critical(f'{self.hostname}: EMERGENCY STOP recibido — ejecutando immediate_stop')
-                        self.comm_data[self.hostname + '_out'] = self.get_immediate_stop_command(motor_current=self.motor_current).get_list_to_send()
-                        self.virtual_axis.stop()
-                    elif message[0] == "heartbeat": # watchdog heartbeat del musician
-                        self.last_watchdog_time = time.perf_counter()
-                    elif message[0] == "ask_control": # si quiere saber los parametros del control
-                        l = [self.Kp, self.Ki, self.Kd, self.acc, self.dec, self.virtual_axis_proportional_coef, self.Kp_vel, self.Ki_vel, self.Kd_vel]
-                        self.musician_pipe.send([l])
-                    elif message[0] == "change_control": # si se ordena cambiar los parametros del control
-                        if self.Kp != message[1]['kp'] or self.Ki != message[1]['ki'] or self.Kd != message[1]['kd'] or self.acc != message[1]['acceleration'] or self.dec != message[1]['deceleration'] or self.virtual_axis_proportional_coef != message[1]['proportional_coef'] or self.Kp_vel != message[1]['kp_vel'] or self.Ki_vel != message[1]['ki_vel'] or self.Kd_vel != message[1]['kd_vel']:
-                            print("Control loop changed")
-                            self.comm_data[self.hostname + '_out'] = self.get_return_to_command_mode_command().get_list_to_send() # se envia este mensaje primero para que el dispositivo salga del movimiento synchrostep (y actualice los cambios cuando se vuelva a iniciar el movimiento)
-                            time.sleep(0.1) 
+                try:
+                    if self.musician_pipe.poll(): # se revisa si hay alguna instrucción desde el proceso del musico
+                        message = self.musician_pipe.recv()
+                        if self.verbose:
+                            print("Message received in", self.hostname, message)
+                        if message[0] == "emergency_stop": # parada de emergencia inmediata
+                            logger.critical(f'{self.hostname}: EMERGENCY STOP recibido — ejecutando immediate_stop')
+                            self.comm_data[self.hostname + '_out'] = self.get_immediate_stop_command(motor_current=self.motor_current).get_list_to_send()
+                            self.virtual_axis.stop()
+                        elif message[0] == "heartbeat": # watchdog heartbeat del musician
+                            self.last_watchdog_time = time.perf_counter()
+                        elif message[0] == "ask_control": # si quiere saber los parametros del control
+                            l = [self.Kp, self.Ki, self.Kd, self.acc, self.dec, self.virtual_axis_proportional_coef, self.Kp_vel, self.Ki_vel, self.Kd_vel]
+                            self.musician_pipe.send([l])
+                        elif message[0] == "change_control": # si se ordena cambiar los parametros del control
+                            if self.Kp != message[1]['kp'] or self.Ki != message[1]['ki'] or self.Kd != message[1]['kd'] or self.acc != message[1]['acceleration'] or self.dec != message[1]['deceleration'] or self.virtual_axis_proportional_coef != message[1]['proportional_coef'] or self.Kp_vel != message[1]['kp_vel'] or self.Ki_vel != message[1]['ki_vel'] or self.Kd_vel != message[1]['kd_vel']:
+                                print("Control loop changed")
+                                self.comm_data[self.hostname + '_out'] = self.get_return_to_command_mode_command().get_list_to_send()
+                                time.sleep(0.1)
 
-                        self.Kp = message[1]['kp']
-                        self.Ki = message[1]['ki']
-                        self.Kd = message[1]['kd']
-                        self.acc = message[1]['acceleration']
-                        self.dec = message[1]['deceleration']
-                        self.virtual_axis_proportional_coef = message[1]['proportional_coef']
-                        self.Kp_vel = message[1]['kp_vel']
-                        self.Ki_vel = message[1]['ki_vel']
-                        self.Kd_vel = message[1]['kd_vel']
-                        self.synchrostep_out_list = self.get_synchrostep_move_command(self.virtual_axis.pos, 0, speed=self.virtual_axis.vel, acceleration=self.acc, deceleration=self.dec, proportional_coefficient=self.virtual_axis_proportional_coef, network_delay=NETWORK_DELAY, encoder=False).get_list_to_send()
+                            self.Kp = message[1]['kp']
+                            self.Ki = message[1]['ki']
+                            self.Kd = message[1]['kd']
+                            self.acc = message[1]['acceleration']
+                            self.dec = message[1]['deceleration']
+                            self.virtual_axis_proportional_coef = message[1]['proportional_coef']
+                            self.Kp_vel = message[1]['kp_vel']
+                            self.Ki_vel = message[1]['ki_vel']
+                            self.Kd_vel = message[1]['kd_vel']
+                            self.synchrostep_out_list = self.get_synchrostep_move_command(self.virtual_axis.pos, 0, speed=self.virtual_axis.vel, acceleration=self.acc, deceleration=self.dec, proportional_coefficient=self.virtual_axis_proportional_coef, network_delay=NETWORK_DELAY, encoder=False).get_list_to_send()
+                except (EOFError, BrokenPipeError, ConnectionResetError):
+                    logger.critical(f'{self.hostname}: PIPE ROTO — musician desconectado. Deteniendo motor.')
+                    self.comm_data[self.hostname + '_out'] = self.get_immediate_stop_command(motor_current=self.motor_current).get_list_to_send()
+                    self.virtual_axis.stop()
+                    break  # salir del loop — ya no hay comunicación
 
                 # Spin-wait híbrido: sleep grueso + spin fino para el último ms
                 _elapsed = time.perf_counter() - _t_loop_start
@@ -1407,20 +1416,23 @@ class VirtualFlow(threading.Thread):
                 print(type(self.flow), self.flow)
             if self.verbose:
                 print(t, self.flow)
-            self.update_ref(t) # actualiza la lista eliminando los datos de tiempo menor al actual
-            if self.pipe_conn.poll(self.interval): # escucha si hay alguna instruccion. Si no lo hay luego de los self.interval ms avanza
-                message = self.pipe_conn.recv()
-                #print("Message received in virtual flow:", message[0])
-                if message[0] == "get_ref":
-                    self.get_ref(message[1])
-                elif message[0] == "update_ref":
-                    self.update_ref(message[1])
-                elif message[0] == "merge_ref": # se envia esta instrucción desde un proceso distinto para actualizar la ruta referencia
-                    self.vibrato_amp = message[2]
-                    self.vibrato_freq = message[3]
-                    self.merge_ref(message[1])
-                elif message[0] == "stop": # se envia esta instrucción desde un proceso distinto para detener el flujo (soft stop)
-                    self.stop()
+            self.update_ref(t)
+            try:
+                if self.pipe_conn.poll(self.interval):
+                    message = self.pipe_conn.recv()
+                    if message[0] == "get_ref":
+                        self.get_ref(message[1])
+                    elif message[0] == "update_ref":
+                        self.update_ref(message[1])
+                    elif message[0] == "merge_ref":
+                        self.vibrato_amp = message[2]
+                        self.vibrato_freq = message[3]
+                        self.merge_ref(message[1])
+                    elif message[0] == "stop":
+                        self.stop()
+            except (EOFError, BrokenPipeError, ConnectionResetError, OSError):
+                self.stop()
+                break
 
     def get_ref(self, t): # actualiza el flujo para el tiempo actual de acuerdo a la ruta referencia
         if self.ref[-1][0] > t: # si la ruta esta definida hasta un t_final > t_actual
@@ -1474,26 +1486,28 @@ class VirtualFingers(threading.Thread):
     def run(self):
         while self.running.is_set(): # corre durante toda la ejecución principal
             t = time.perf_counter() - self.t0
-            self.note, self.aperture, self.tongue = self.get_ref(t) # de acuerdo al tiempo actual actualiza la nota a partir de la ruta
-            #print(self.note, self.aperture, self.tongue, t, self.ref[:5])
+            self.note, self.aperture, self.tongue = self.get_ref(t)
             if self.verbose:
                 print(t, self.note, self.aperture, self.tongue)
-            self.update_ref(t) # actualiza la lista eliminando los datos de tiempo menor al actual
-            if self.pipe_end.poll(self.interval): # escucha si hay alguna instruccion. Si no lo hay luego de los self.interval ms avanza
-                message = self.pipe_end.recv()
-                # print("Message received in virtual fingers:", message[0])
-                if message[0] == "get_ref":
-                    pos = self.get_ref(message[1])
-                elif message[0] == "update_ref":
-                    self.update_ref(message[1])
-                elif message[0] == "merge_ref": # se envia esta instrucción desde un proceso distinto para actualizar la ruta referencia
-                    self.merge_ref(message[1])
-                elif message[0] == "stop": # se envia esta instrucción desde un proceso distinto para detener el cambio de notas
-                    self.stop()
-                elif message[0] == "merge_lips_surface_ref": # este simulador tambien tiene la referencia para la apertura de los labios
-                    self.merge_lips_surface_ref(message[1])
-                elif message[0] == "merge_tongue_ref": # este simulador tambien tiene la referencia para la apertura de los labios
-                    self.merge_tongue_ref(message[1])
+            self.update_ref(t)
+            try:
+                if self.pipe_end.poll(self.interval):
+                    message = self.pipe_end.recv()
+                    if message[0] == "get_ref":
+                        pos = self.get_ref(message[1])
+                    elif message[0] == "update_ref":
+                        self.update_ref(message[1])
+                    elif message[0] == "merge_ref":
+                        self.merge_ref(message[1])
+                    elif message[0] == "stop":
+                        self.stop()
+                    elif message[0] == "merge_lips_surface_ref":
+                        self.merge_lips_surface_ref(message[1])
+                    elif message[0] == "merge_tongue_ref":
+                        self.merge_tongue_ref(message[1])
+            except (EOFError, BrokenPipeError, ConnectionResetError, OSError):
+                self.stop()
+                break
 
     def get_ref(self, t): # actualiza la nota a digitar para el tiempo actual de acuerdo a la ruta referencia
         if self.ref[-1][0] > t: # si la ruta esta definida hasta un t_final > t_actual
@@ -1924,7 +1938,7 @@ class Microphone(Process):
         if self.method == 0: # si se usa el metodo YIN
             try:
                 pitch = yin(self.last_mic_data, sr=self.sr, fmin=self.yin_settings['fmin'], frame_length=self.yin_settings['frame_length'], fmax=self.yin_settings['fmax'], trough_threshold=self.yin_settings['trough_threshold'], center=self.yin_settings['center'], hop_length=self.yin_settings['hop_length'], win_length=self.yin_settings['win_length'], pad_mode=Microphone.pad_modes[self.yin_settings['pad_mode']])[-1] 
-            except:
+            except Exception:
                 pitch = 0 # si falla la deteccion se dice que el pitch es 0
         else:  # si se usa el metodo pYIN
             try:

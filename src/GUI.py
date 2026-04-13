@@ -1,4 +1,5 @@
 import threading
+import logging
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QMenu, QMessageBox,
     QFileDialog, QSplashScreen, QDesktopWidget, QLabel, QFrame, QVBoxLayout,
     QHBoxLayout, QWidget, QSizePolicy, QGroupBox, QPushButton)
@@ -7,6 +8,8 @@ from pyqtgraph.Qt import QtGui, QtCore
 
 import sys
 from time import time, sleep
+
+logger = logging.getLogger('pierre.gui')
 from numpy import linspace
 from random import random, randint
 from functools import partial
@@ -1080,8 +1083,8 @@ class Window(QMainWindow, PlotWindow):
                     self.freq_plot = np.hstack([self.freq_plot, (12*np.log2(self.data["frequency"][last_index+1:]) - 12*np.log2(440*2**(-7/12))) / 2]) # en el caso de las notas, se plotea el pitch detectado por el metodo YIN o pYIN
                     self.t_plot = np.hstack([self.t_plot, self.data["times"][last_index+1:] - first_t + t[ti]])
                     self.refresh_plots_signal.emit(['r']) # se actualizan los graficos
-                except:
-                    print("Hubo un error")
+                except Exception as e:
+                    logger.error(f"Error actualizando plots en tiempo real: {e}")
                 last_t = self.data["times"][-1] # actualizamos el últumo tiempo que se ploteo
                 if t_act + t[ti] > t[-1]: # una vez que llega al final de la partitura emite la señal de parar de tocar
                     self.stop_playing.emit()
@@ -1288,7 +1291,8 @@ class Window(QMainWindow, PlotWindow):
                         self.graphicsView_8.refresh()
                         self.filename = fname
                         self.changes_saved()
-                    except:
+                    except Exception as e:
+                        logger.error(f"Error abriendo archivo (formato): {e}")
                         self.clean_score()
                         msg = QMessageBox()
                         msg.setIcon(QMessageBox.Critical)
@@ -1297,7 +1301,8 @@ class Window(QMainWindow, PlotWindow):
                         msg.setWindowTitle("File Error")
                         #msg.setDetailedText("The details are as follows:")
                         retval = msg.exec_()
-            except:
+            except Exception as e:
+                logger.error(f"Error abriendo archivo (no encontrado): {e}")
                 msg = QMessageBox()
                 msg.setIcon(QMessageBox.Critical)
                 msg.setText("Couldn't find file.")
@@ -1445,8 +1450,8 @@ class Window(QMainWindow, PlotWindow):
                 n = self.route5['notes'][i][1] # nota a tocar
                 try:
                     dict_to_use = self.graphicsView_8.get_dict_for_t(t)
-                except:
-                    print("hubo error")
+                except Exception as e:
+                    logger.error(f"Error obteniendo diccionario para t={t}: {e}")
                     dict_to_use = LOOK_UP_TABLE
                 if i == 0: # si es la primera nota sabemos que vamos a partir en su estado, no es necesaria una transicion
                     tf = max(0, min(t+offset, self.route['total_t'])) # tiempo final de la transicion
@@ -1735,8 +1740,8 @@ class Window(QMainWindow, PlotWindow):
                 self.changes_made()
                 try:
                     self.refresh_plots_signal.emit([1]) # actualizamos el grafico
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error emitiendo refresh_plots_signal: {e}")
         else: # si se estaba moviendo un punto, un vibrato o un filtro, y se hace click, entonces se deja de mover el elemento que se estaba moviendo y queda en su ultima posicion
             self.moving_point[0] = False
             self.moving_vibrato[0] = False
@@ -1994,8 +1999,8 @@ class Window(QMainWindow, PlotWindow):
                 try:
                     self.refresh_plots_signal.emit([2])
                     self.changes_made()
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error emitiendo refresh_plots_signal: {e}")
         else:
             self.moving_point[1] = False
             self.moving_vibrato[1] = False
@@ -2249,8 +2254,8 @@ class Window(QMainWindow, PlotWindow):
                 self.changes_made()
                 try:
                     self.refresh_plots_signal.emit([3])
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error emitiendo refresh_plots_signal: {e}")
         else:
             self.moving_point[2] = False
             self.moving_vibrato[2] = False
@@ -2504,8 +2509,8 @@ class Window(QMainWindow, PlotWindow):
                 self.changes_made()
                 try:
                     self.refresh_plots_signal.emit([4])
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error emitiendo refresh_plots_signal: {e}")
         else:
             self.moving_point[3] = False
             self.moving_vibrato[3] = False
@@ -2635,8 +2640,8 @@ class Window(QMainWindow, PlotWindow):
                 self.changes_made()
                 try:
                     self.refresh_plots_signal.emit([5])
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error emitiendo refresh_plots_signal: {e}")
         else:
             self.moving_point[4] = False
             self.segundo_click[4] = False
@@ -2784,8 +2789,8 @@ class Window(QMainWindow, PlotWindow):
                 self.changes_made()
                 try:
                     self.refresh_plots_signal.emit([6])
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error emitiendo refresh_plots_signal: {e}")
         else:
             self.moving_point[5] = False
             self.segundo_click[5] = False
@@ -2879,8 +2884,8 @@ class Window(QMainWindow, PlotWindow):
                 self.changes_made()
                 try:
                     self.refresh_plots_signal.emit([7])
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error emitiendo refresh_plots_signal: {e}")
         else:
             self.moving_point[6] = False
             self.segundo_click[6] = False
