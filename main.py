@@ -36,7 +36,6 @@ if __name__ == '__main__':
     connect = True
     ## Creamos el objeto Musico, que conecta a todos los dispositivos
     pierre = Musician(host, connections, event, pierre_pipe, data, fingers_connect=connect, x_connect=connect, z_connect=connect, alpha_connect=connect, flow_connect=connect, pressure_sensor_connect=connect, mic_connect=connect, home=True)
-    pierre.daemon = True
     pierre.start()
 
     def cleanup():

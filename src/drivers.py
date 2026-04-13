@@ -302,6 +302,7 @@ class AMCIDriver(Process):
         self.MV_I0 = 0
         self.MV = 0
         self.Ka = 1.0  # ganancia anti-windup (>0 para activar)
+        self._pos_clamp_logged = False  # throttle para log de clamp
 
         # Limites de posicion para anti-windup y proteccion mecanica
         # Se determinan segun el eje usando el hostname para distinguir
@@ -775,24 +776,32 @@ class AMCIDriver(Process):
         e_vel = SP_vel-CV_vel
         MV_P_vel = self.Kp_vel*e_vel
 
-        # Anti-windup: el termino Ka * sat() corrige la acumulacion del integrador cuando la salida esta saturada
-        MV_I_vel = self.MV_I0_vel + self.Ki_vel*dt*e_vel - self.Ka_vel*(self.MV_vel - max(self.MV_low_vel, min(self.MV_high_vel, self.MV_vel)))
+        MV_I_vel = self.MV_I0_vel + self.Ki_vel*dt*e_vel
         MV_D_vel = self.Kd_vel*(e_vel-self.e0_vel)/dt
 
-        MV_I = self.MV_I0 + self.Ki*dt*e - self.Ka*(self.MV - max(self.MV_low, min(self.MV_high, self.MV)))
+        MV_I = self.MV_I0 + self.Ki*dt*e
         MV_D = self.Kd*(e-self.e0)/dt
 
         # Calcular salida y clampear a limites de posicion
         raw_pos = int(round(SP + MV_P + MV_I + MV_D, 0))
         self.MV = max(self.pos_min, min(self.pos_max, raw_pos))
+        # Anti-windup: si la salida satura, corregir el integral para evitar acumulación
         if raw_pos != self.MV:
-            logger.warning(f"{self.hostname}: Posicion PID clampeada de {raw_pos} a {self.MV} (limites: [{self.pos_min}, {self.pos_max}])")
+            MV_I -= self.Ka * (raw_pos - self.MV)
+            if not self._pos_clamp_logged:
+                logger.warning(f"{self.hostname}: Posicion PID clampeada de {raw_pos} a {self.MV} (limites: [{self.pos_min}, {self.pos_max}])")
+                self._pos_clamp_logged = True
+        else:
+            self._pos_clamp_logged = False
         self.e0 = e
         self.MV_I0 = MV_I
 
         # Calcular velocidad y clampear
         raw_vel = int(round(SP_vel + MV_P_vel + MV_I_vel + MV_D_vel, 0))
         self.MV_vel = max(-SAFETY_MAX_VELOCITY, min(SAFETY_MAX_VELOCITY, raw_vel))
+        # Anti-windup para velocidad
+        if raw_vel != self.MV_vel:
+            MV_I_vel -= self.Ka_vel * (raw_vel - self.MV_vel)
         self.e0_vel = e_vel
         self.MV_I0_vel = MV_I_vel
 

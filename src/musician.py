@@ -56,7 +56,6 @@ class Musician(Process):
         self.comm_event.set()
         self.comm_pipe, comm_pipe2 = Pipe() # creamos un pipe para enviarle instrucciones a la central de comunicaciones
         self.communications = CommunicationCenter(self.host, self.comm_event, comm_pipe2, self.data, connect=communication_connect, verbose=False)
-        self.communications.daemon = True
         self.communications.start()
 
         print("Communication started...\nConnecting Drivers...")
@@ -130,12 +129,6 @@ class Musician(Process):
         self.memory = Memory(self.running, self.x_driver, self.z_driver, self.alpha_driver, self.flow_driver, self.preasure_sensor, self.microphone, self.fingers_driver, memory_end_conn, self.data, windowWidth=200, interval=0.01)
 
         print("Memory created...\nStarting...")
-        ## Marcar todos los subprocesos como daemon para que mueran con el proceso padre
-        for child in [self.memory, self.x_driver, self.z_driver,
-                      self.alpha_driver, self.flow_driver, self.fingers_driver,
-                      self.preasure_sensor, self.microphone]:
-            child.daemon = True
-
         ## habiendo creado todos los objetos, se empiezan a correr.
         self.memory.start()
 
