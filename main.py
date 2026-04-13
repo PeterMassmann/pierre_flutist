@@ -1,12 +1,13 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication
-from multiprocessing import Process, Event, Value, Pipe, Manager
-from src.GUI import StartUpWindow, Window
-from src.musician import Musician
 from time import time, perf_counter, sleep
 
 if __name__ == '__main__':
+    from PyQt5.QtWidgets import QApplication
+    from multiprocessing import Process, Event, Value, Pipe, Manager
+    from src.GUI import StartUpWindow, Window
+    from src.musician import Musician
+
     app = QApplication(sys.argv)
 
     ## Cargar tema visual
