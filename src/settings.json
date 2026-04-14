@@ -1,4 +1,22 @@
 {
+    "network": {
+        "host": "192.168.2.10",
+        "x_driver": "192.168.2.102",
+        "z_driver": "192.168.2.104",
+        "alpha_driver": "192.168.2.103",
+        "flow_controller": "192.168.2.101",
+        "pressure_sensor": "192.168.2.100",
+        "fingers_driver": "192.168.2.105"
+    },
+    "homing": {
+        "ccw_jog_speed": 100,
+        "ccw_jog_acceleration": 5,
+        "cw_jog_speed": 4000,
+        "alpha_home_offset_steps": -569,
+        "alpha_home_move_speed": 1000,
+        "xz_safety_distance_steps": -800,
+        "xz_safety_move_speed": 4000
+    },
     "safety": {
         "x_min_steps": -2000,
         "x_max_steps": 100000,

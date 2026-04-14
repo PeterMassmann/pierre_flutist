@@ -48,6 +48,16 @@ SAFETY_MAX_PRESSURE = SAFETY.get('max_pressure_kpa', 200.0)
 SAFETY_FLOW_RATE_LIMIT = SAFETY.get('flow_rate_limit_per_step', 5.0)
 NETWORK_DELAY = DATA.get('network_delay', 20)
 
+# Parametros de homing cargados desde settings.json
+HOMING = DATA.get('homing', {})
+HOMING_CCW_JOG_SPEED = HOMING.get('ccw_jog_speed', 100)
+HOMING_CCW_JOG_ACC = HOMING.get('ccw_jog_acceleration', 5)
+HOMING_CW_JOG_SPEED = HOMING.get('cw_jog_speed', 4000)
+HOMING_ALPHA_OFFSET = HOMING.get('alpha_home_offset_steps', -569)
+HOMING_ALPHA_MOVE_SPEED = HOMING.get('alpha_home_move_speed', 1000)
+HOMING_XZ_SAFETY_DIST = HOMING.get('xz_safety_distance_steps', -800)
+HOMING_XZ_SAFETY_SPEED = HOMING.get('xz_safety_move_speed', 4000)
+
 # INPUT_FUNCTION_BITS definen el tipo de entrada que tienen los drivers AMCI
 INPUT_FUNCTION_BITS = {'General Purpose Input': 0, 'CW Limit': 1, 'CCW Limit': 2, 'Start Index Move': 3, 'Capture Encoder Value': 3, 'Stop Jog': 4, 'Stop Registration Move': 4, 'Emergency Stop': 5, 'Home': 6}
 
@@ -535,19 +545,24 @@ class AMCIDriver(Process):
 
             if self.home: # si se quiere hacer una rutina de homing, que es necesaria para saber la posición real del motor
                 if self.initial_settings.desired_input_2_function_bits == INPUT_FUNCTION_BITS['CCW Limit']: # el eje alpha tiene su rutina de homing hacia el sentido opuesto del reloj, mientras que los otros dos ejes la tienen en sentido contrario. Esto resulta util para algunas diferencias en sus procesos de homing. Cuando los ejes X y Z alcanzan el limit switch simplemente toman una distancia de seguridad y asignan ese punto como su origen. El eje alpha en cambio debe quedar horizontal, por lo que al encontrar el limit switch despues se mueve una cierta cantidad de pasos (calculado como el offset del limit switch) y define ese punto como su origen.
-                    print("Buscando CCW")
+                    logger.info(f"{self.hostname}: Buscando CCW (speed={HOMING_CCW_JOG_SPEED}, acc={HOMING_CCW_JOG_ACC})")
                     self.ccw_find_home_to_limit() # inicia la busqueda del origen. Esta rutina tiene dos etapas. Primero busca el origen a una velocidad mayor, cuando lo encuentra toma un poco de distancia y lo vuelve a buscar pero más lento para tener mayor precisión.
                     self.slow_ccw_limit_homing = True # Inicia rápido hasta que se activa el limit switch
                     _homing_t0 = time.perf_counter()
+                    _homing_failed = False
+                    _homing_log_count = 0
                     while self.fast_ccw_limit_homing or self.slow_ccw_limit_homing: # mientras no termine las dos etapas se mantiene en loop
                         if time.perf_counter() - _homing_t0 > SAFETY_HOMING_TIMEOUT:
-                            logger.error(f"TIMEOUT: Homing CCW de {self.hostname} excedio {SAFETY_HOMING_TIMEOUT}s. Deteniendo motor.")
+                            logger.error(f"TIMEOUT: Homing CCW de {self.hostname} excedio {SAFETY_HOMING_TIMEOUT}s. Deteniendo motor. Driver continua en modo degradado.")
                             self.comm_data[self.hostname + '_out'] = self.get_immediate_stop_command(motor_current=self.motor_current).get_list_to_send()
-                            self.musician_pipe.send(["driver_started"])
-                            return
+                            _homing_failed = True
+                            break
                         time.sleep(0.5)
                         data = self.read_input() # lee el estado del motor.
                         self.process_incoming_data(data) # Si se activo el limit switch, el motor se frenó y estará activado el limit_condition
+                        _homing_log_count += 1
+                        if _homing_log_count % 10 == 0:  # log cada 5s (10 * 0.5s)
+                            logger.info(f"{self.hostname} homing CCW: t={time.perf_counter()-_homing_t0:.0f}s, moving_ccw={self.moving_ccw}, moving_cw={self.moving_cw}, stopped={self.stopped}, limit={self.limit_condition}, pos={self.encoder_position.value}, mode={self.mode_select_bit}")
                         if self.limit_condition:
                             if self.verbose:
                                 print('Limit condition')
@@ -567,55 +582,57 @@ class AMCIDriver(Process):
                                     print('was moving slow ccw')
                                 self.slow_ccw_limit_homing = False
 
-                    time.sleep(0.5)
-                    
-                    # decimos que nos encontramos en la posición -569 (en pasos del motor)
-                    c = self.get_preset_encoder_position_command(-569) 
-                    self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
-                    time.sleep(0.1)
+                    if not _homing_failed:
+                        time.sleep(0.5)
 
-                    c = self.get_preset_position_command(-569)
-                    self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
-                    time.sleep(0.1)
-
-                    # luego nos movemos al origen (donde la boca esta horizontal)
-                    c = self.get_relative_move_command(569, programmed_speed=1000, acceleration=self.acc, deceleration=self.dec, motor_current=self.motor_current)
-                    self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
-                    time.sleep(0.1)
-                    _move_t0 = time.perf_counter()
-                    while True: # esperamos que el movimiento al origen termine antes de seguir
-                        data = self.read_input()
-                        self.process_incoming_data(data)
-                        if self.move_complete:
-                            break
-                        if time.perf_counter() - _move_t0 > SAFETY_MOVE_TIMEOUT:
-                            logger.error(f"TIMEOUT: Movimiento a origen de {self.hostname} excedio {SAFETY_MOVE_TIMEOUT}s")
-                            self.comm_data[self.hostname + '_out'] = self.get_immediate_stop_command(motor_current=self.motor_current).get_list_to_send()
-                            break
+                        # decimos que nos encontramos en la posición HOMING_ALPHA_OFFSET (en pasos del motor)
+                        c = self.get_preset_encoder_position_command(HOMING_ALPHA_OFFSET)
+                        self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
                         time.sleep(0.1)
-                    
-                    c = self.get_reset_errors_command()
-                    self.comm_data[self.hostname + '_out'] = c.get_list_to_send() # se eliminan los errores en caso de haber uno
-                    time.sleep(0.1)
 
-                    c = self.get_return_to_command_mode_command()
-                    self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
-                    time.sleep(0.1)
+                        c = self.get_preset_position_command(HOMING_ALPHA_OFFSET)
+                        self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
+                        time.sleep(0.1)
 
-                    if self.verbose:
-                        print('Homed')
+                        # luego nos movemos al origen (donde la boca esta horizontal)
+                        c = self.get_relative_move_command(-HOMING_ALPHA_OFFSET, programmed_speed=HOMING_ALPHA_MOVE_SPEED, acceleration=self.acc, deceleration=self.dec, motor_current=self.motor_current)
+                        self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
+                        time.sleep(0.1)
+                        _move_t0 = time.perf_counter()
+                        while True: # esperamos que el movimiento al origen termine antes de seguir
+                            data = self.read_input()
+                            self.process_incoming_data(data)
+                            if self.move_complete:
+                                break
+                            if time.perf_counter() - _move_t0 > SAFETY_MOVE_TIMEOUT:
+                                logger.error(f"TIMEOUT: Movimiento a origen de {self.hostname} excedio {SAFETY_MOVE_TIMEOUT}s")
+                                self.comm_data[self.hostname + '_out'] = self.get_immediate_stop_command(motor_current=self.motor_current).get_list_to_send()
+                                break
+                            time.sleep(0.1)
+
+                        c = self.get_reset_errors_command()
+                        self.comm_data[self.hostname + '_out'] = c.get_list_to_send() # se eliminan los errores en caso de haber uno
+                        time.sleep(0.1)
+
+                        c = self.get_return_to_command_mode_command()
+                        self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
+                        time.sleep(0.1)
+
+                        if self.verbose:
+                            print('Homed')
 
                 elif self.initial_settings.desired_input_2_function_bits == INPUT_FUNCTION_BITS['CW Limit']:
                     # la rutina de homing de X y Z es parecida a la de alpha, solo que en sentido de giro opuesto
                     self.cw_find_home_to_limit()
                     self.fast_cw_limit_homing = True
                     _homing_t0 = time.perf_counter()
+                    _homing_failed = False
                     while self.fast_cw_limit_homing or self.slow_cw_limit_homing:
                         if time.perf_counter() - _homing_t0 > SAFETY_HOMING_TIMEOUT:
-                            logger.error(f"TIMEOUT: Homing CW de {self.hostname} excedio {SAFETY_HOMING_TIMEOUT}s. Deteniendo motor.")
+                            logger.error(f"TIMEOUT: Homing CW de {self.hostname} excedio {SAFETY_HOMING_TIMEOUT}s. Deteniendo motor. Driver continua en modo degradado.")
                             self.comm_data[self.hostname + '_out'] = self.get_immediate_stop_command(motor_current=self.motor_current).get_list_to_send()
-                            self.musician_pipe.send(["driver_started"])
-                            return
+                            _homing_failed = True
+                            break
                         time.sleep(0.5)
                         data = self.read_input()
                         self.process_incoming_data(data)
@@ -637,43 +654,44 @@ class AMCIDriver(Process):
                                 if self.verbose:
                                     print('was moving slow cw')
                                 self.slow_cw_limit_homing = False
-                    time.sleep(0.5)
-                    
-                    # cuando ya esta en el origen, se toma una distancia de seguridad (para desactivar la condicion de limite) de 800 pasos
-                    c = self.get_relative_move_command(-800, programmed_speed=4000, acceleration=self.acc, deceleration=self.dec, motor_current=self.motor_current)
-                    self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
-                    time.sleep(0.1)
-                    _move_t0 = time.perf_counter()
-                    while True:  # esperamos verificando move_complete en vez de sleep fijo
-                        data = self.read_input()
-                        self.process_incoming_data(data)
-                        if self.move_complete:
-                            break
-                        if time.perf_counter() - _move_t0 > SAFETY_MOVE_TIMEOUT:
-                            logger.error(f"TIMEOUT: Movimiento de seguridad de {self.hostname} excedio {SAFETY_MOVE_TIMEOUT}s")
-                            self.comm_data[self.hostname + '_out'] = self.get_immediate_stop_command(motor_current=self.motor_current).get_list_to_send()
-                            break
+                    if not _homing_failed:
+                        time.sleep(0.5)
+
+                        # cuando ya esta en el origen, se toma una distancia de seguridad (para desactivar la condicion de limite)
+                        c = self.get_relative_move_command(HOMING_XZ_SAFETY_DIST, programmed_speed=HOMING_XZ_SAFETY_SPEED, acceleration=self.acc, deceleration=self.dec, motor_current=self.motor_current)
+                        self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
+                        time.sleep(0.1)
+                        _move_t0 = time.perf_counter()
+                        while True:  # esperamos verificando move_complete en vez de sleep fijo
+                            data = self.read_input()
+                            self.process_incoming_data(data)
+                            if self.move_complete:
+                                break
+                            if time.perf_counter() - _move_t0 > SAFETY_MOVE_TIMEOUT:
+                                logger.error(f"TIMEOUT: Movimiento de seguridad de {self.hostname} excedio {SAFETY_MOVE_TIMEOUT}s")
+                                self.comm_data[self.hostname + '_out'] = self.get_immediate_stop_command(motor_current=self.motor_current).get_list_to_send()
+                                break
+                            time.sleep(0.1)
+
+                        c = self.get_reset_errors_command()
+                        self.comm_data[self.hostname + '_out'] = c.get_list_to_send() # se eliminan los errores
                         time.sleep(0.1)
 
-                    c = self.get_reset_errors_command()
-                    self.comm_data[self.hostname + '_out'] = c.get_list_to_send() # se eliminan los errores
-                    time.sleep(0.1)
+                        # y luego se define este punto como el origen
+                        c = self.get_preset_position_command(0)
+                        self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
+                        time.sleep(0.1)
 
-                    # y luego se define este punto como el origen
-                    c = self.get_preset_position_command(0)
-                    self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
-                    time.sleep(0.1)
+                        c = self.get_preset_encoder_position_command(0)
+                        self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
+                        time.sleep(0.1)
 
-                    c = self.get_preset_encoder_position_command(0)
-                    self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
-                    time.sleep(0.1)
+                        c = self.get_return_to_command_mode_command()
+                        self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
+                        time.sleep(0.1)
 
-                    c = self.get_return_to_command_mode_command()
-                    self.comm_data[self.hostname + '_out'] = c.get_list_to_send()
-                    time.sleep(0.1)
-
-                    if self.verbose:
-                        print('Homed')
+                        if self.verbose:
+                            print('Homed')
             else:
                 # si no se quiere hacer la rutina de homing se asigna la posición de inicio como el origen
                 c = self.get_preset_position_command(0)
@@ -855,12 +873,12 @@ class AMCIDriver(Process):
 
     def ccw_find_home_to_limit(self): # función para buscar el home contra el sentido del reloj
         #self.fast_ccw_limit_homing = True
-        ccw_jog = self.get_ccw_jog_command(programmed_speed=100, acceleration=5, motor_current=self.motor_current)
+        ccw_jog = self.get_ccw_jog_command(programmed_speed=HOMING_CCW_JOG_SPEED, acceleration=HOMING_CCW_JOG_ACC, motor_current=self.motor_current)
         self.comm_data[self.hostname + '_out'] = ccw_jog.get_list_to_send()
     
     def cw_find_home_to_limit(self): # función para buscar el home al sentido del reloj
         self.fast_cw_limit_homing = True
-        cw_jog = self.get_cw_jog_command(programmed_speed=4000, motor_current=self.motor_current)
+        cw_jog = self.get_cw_jog_command(programmed_speed=HOMING_CW_JOG_SPEED, motor_current=self.motor_current)
         self.comm_data[self.hostname + '_out'] = cw_jog.get_list_to_send()
 
     def get_reset_errors_command(self): # retorna el comando para resetear errores
@@ -1938,7 +1956,8 @@ class Microphone(Process):
         if self.method == 0: # si se usa el metodo YIN
             try:
                 pitch = yin(self.last_mic_data, sr=self.sr, fmin=self.yin_settings['fmin'], frame_length=self.yin_settings['frame_length'], fmax=self.yin_settings['fmax'], trough_threshold=self.yin_settings['trough_threshold'], center=self.yin_settings['center'], hop_length=self.yin_settings['hop_length'], win_length=self.yin_settings['win_length'], pad_mode=Microphone.pad_modes[self.yin_settings['pad_mode']])[-1] 
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Pitch detection YIN fallo: {e}")
                 pitch = 0 # si falla la deteccion se dice que el pitch es 0
         else:  # si se usa el metodo pYIN
             try:
@@ -1948,8 +1967,8 @@ class Microphone(Process):
                     pitch = pyin(self.last_mic_data, sr=self.sr, fmin=self.pyin_settings['fmin'], fmax=self.pyin_settings['fmax'], frame_length=self.pyin_settings['frame_length'], win_length=self.pyin_settings['win_length'], hop_length=self.pyin_settings['hop_length'], n_thresholds=self.pyin_settings['n_threshold'], beta_parameters=(self.pyin_settings['beta_parameter_a'], self.pyin_settings['beta_parameter_b']), boltzmann_parameter=self.pyin_settings['boltzmann_parameter'], resolution=self.pyin_settings['resolution'], max_transition_rate=self.pyin_settings['max_transition_rate'], switch_prob=self.pyin_settings['switch_prob'], no_trough_prob=self.pyin_settings['no_trough_prob'], fill_na=self.pyin_settings['fill_na_float'], center=self.pyin_settings['center'], pad_mode=Microphone.pad_modes[self.pyin_settings['pad_mode']])[0][-1]
                 elif self.pyin_settings['fill_na'] == 2:
                     pitch = pyin(self.last_mic_data, sr=self.sr, fmin=self.pyin_settings['fmin'], fmax=self.pyin_settings['fmax'], frame_length=self.pyin_settings['frame_length'], win_length=self.pyin_settings['win_length'], hop_length=self.pyin_settings['hop_length'], n_thresholds=self.pyin_settings['n_threshold'], beta_parameters=(self.pyin_settings['beta_parameter_a'], self.pyin_settings['beta_parameter_b']), boltzmann_parameter=self.pyin_settings['boltzmann_parameter'], resolution=self.pyin_settings['resolution'], max_transition_rate=self.pyin_settings['max_transition_rate'], switch_prob=self.pyin_settings['switch_prob'], no_trough_prob=self.pyin_settings['no_trough_prob'], fill_na=np.nan, center=self.pyin_settings['center'], pad_mode=Microphone.pad_modes[self.pyin_settings['pad_mode']])[0][-1]
-            except Exception as error:
-                print(f"error: {error}")
+            except Exception as e:
+                logger.debug(f"Pitch detection pYIN fallo: {e}")
                 pitch = 0
 
         self.pitch.value = pitch

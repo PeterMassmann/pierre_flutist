@@ -202,134 +202,151 @@ class Musician(Process):
                 self.stop()
                 break
             if _has_message:
-                message = self.end_pipe.recv()
-                if message[0] == "execute_fingers_action": # si se pide un cambio de digitacion de dedos
-                    self.virtual_fingers_conn.send(["merge_ref", [(0, message[1])]]) # se crea una ruta para el eje virtual de los dedos: [(0, message[1])] y se envia una solicitud de merge_ref
-                elif message[0] == "execute_lips_surface_action": # si se pide un cambio en la apertura de los labios
-                    self.virtual_fingers_conn.send(["merge_lips_surface_ref", [(0, message[1])]])
-                elif message[0] == "execute_tongue_action": # si se pide un cambio en la posicion de la lengua
-                    self.virtual_fingers_conn.send(["merge_tongue_ref", [(0, message[1])]])
-                elif message[0] == "move_to": # se pide un cambio de estado
-                    # en este caso message[1] es un objeto State (del estado al que se quiere mover), message[2] dice el tiempo en el que se quiere realizar el movimiento (si es None se calcula en base a la velocidad), message[3] condicion que indica que el movimiento es exclusivamente en el eje X, message[4] condicion que indica que el movimiento es exclusivamente en el eje Z, message[5] condicion que indica que el movimiento es exclusivamente en el eje alpha, message[6] condicion que indica que el movimiento es exclusivamente de flujo y message[7] la velocidad a la que se quiere mover (de 1 a 100)
-                    self.move_to(message[1], T=message[2], only_x=message[3], only_z=message[4], only_alpha=message[5], only_flow=message[6], speed=message[7]) # ejecutamos la funcion move_to con todos los parametros entregados desde la interfaz de usuario
-                elif message[0] == "move_to_final": # tambien se pide un cambio de estado, pero sin calcular una trayectoria. Simplemente se le pide a los dispositivos que se muevan a la direccion indicada en message[1] (de forma inmediata)
-                    # esta instruccion se usa cuando el robot esta siendo controlado por el ps move, donde se envia posiciones de forma periodica, construyendo asi la trayectoria suave
-                    desired = message[1] 
-                    self.x_virtual_axis_conn.send(["merge_ref", [(0, mm2units(desired.x), 0)]])
-                    self.z_virtual_axis_conn.send(["merge_ref", [(0, mm2units(desired.z), 0)]])
-                    self.alpha_virtual_axis_conn.send(["merge_ref", [(0, angle2units(desired.alpha), 0)]])
-                    self.virtual_flow_conn.send(["merge_ref", [(0, desired.flow)], 0, 0])
-                elif message[0] == "reset_x_controller": # resetea el driver del motor del eje x por si tuvo alguna falla
-                    pass # TODO
-                elif message[0] == "reset_z_controller": # resetea el driver del motor del eje Z por si tuvo alguna falla
-                    pass # TODO
-                elif message[0] == "reset_alpha_controller": # resetea el driver del motor del eje alpha por si tuvo alguna falla
-                    pass # TODO
-                elif message[0] == "load_routes": # precarga las rutas que se entregan en los arreglos propios de esta clase, para esperar listo la instruccion de start y ejecutar las trayectorias
-                    self.loaded_route_x = message[1]
-                    self.loaded_route_z = message[2]
-                    self.loaded_route_alpha = message[3]
-                    self.loaded_route_flow = message[4]
-                    self.loaded_route_notes = message[5]
-                    self.loaded_route_aperture = message[6]
-                    self.loaded_route_tongue = message[7]
-                elif  message[0] == "start_loaded_script": # ejecuta las rutas que se habian cargado anteriormente
-                    if message[1]: # el message[1] es un bool que dice si se graba durante la ejecucion
-                        self.memory_conn.send(["start_saving"]) # la memoria va guardando los valores de cada parametro
-                        self.mic_conn.send(["start_saving"]) # el microfono graba un buffer con el audio
-                    self.start_loaded_script() # funcion que ejecuta las rutas pre-cargadas
-                elif  message[0] == "start_free_recording": # 
-                    self.memory_conn.send(["start_saving"]) # la memoria va guardando los valores de cada parametro
-                    self.mic_conn.send(["start_saving"]) # el microfono graba un buffer con el audio
-                elif  message[0] == "stop_free_recording": # 
-                    self.memory_conn.send(["stop_recording"]) # la memoria va guardando los valores de cada parametro
-                    self.mic_conn.send(["stop_recording"]) # el microfono graba un buffer con el audio
-                    self.memory_conn.send(["save_recorded_data", message[1]])
-                    self.mic_conn.send(["save_recorded_data", message[2]])
-                elif message[0] == "stop_playing": # si se pide que se deje de ejecutar una trayectoria
-                    self.stop() # para los motores y lleva el flujo a 0
-                    if message[1]: # si se estaba grabando, se termina de grabar
-                        self.memory_conn.send(["stop_recording"])
-                        self.mic_conn.send(["stop_recording"]) #
-                elif message[0] == "stop": # hace lo mismo que la anterior
+                try:
+                    message = self.end_pipe.recv()
+                except (EOFError, BrokenPipeError, ConnectionResetError):
+                    logger.critical('Musician: pipe con GUI roto al recibir mensaje. Deteniendo.')
                     self.stop()
-                    self.memory_conn.send(["stop_recording"])
-                    self.mic_conn.send(["stop_recording"])
-                elif message[0] == "emergency_stop": # parada de emergencia inmediata desde GUI
-                    self.emergency_stop()
-                    self.memory_conn.send(["stop_recording"])
-                    self.mic_conn.send(["stop_recording"])
-                elif message[0] == "memory.save_recorded_data": # instruccion para guardar en un archivo los datos guardados durante una ejecucion previa. En message[1] tiene la direccion del archivo .csv y en message[2] la direccion del archivo .wav
-                    self.memory_conn.send(["save_recorded_data", message[1]])
-                    self.mic_conn.send(["save_recorded_data", message[2]])
-                elif message[0] == "flow_driver.change_controlled_var": # instruccion de cambiar la variable controlada en el controlador de flujo
-                    self.flow_driver_conn.send(["change_controlled_var", message[1]])
-                elif message[0] == "flow_driver.change_control_loop": # instruccion de cambiar la forma del loop de control en el controlador de flujo
-                    self.flow_driver_conn.send(["change_control_loop", message[1]])
-                elif message[0] == "flow_driver.change_kp": # instruccion de cambiar el kp en el controlador de flujo
-                    self.flow_driver_conn.send(["change_kp", message[1]])
-                elif message[0] == "flow_driver.change_ki": # instruccion de cambiar el ki en el controlador de flujo
-                    self.flow_driver_conn.send(["change_ki", message[1]])
-                elif message[0] == "flow_driver.change_kd": # instruccion de cambiar el kd en el controlador de flujo
-                    self.flow_driver_conn.send(["change_kd", message[1]])
-                elif message[0] == "set_instrument": # instruccion de setear el instrumento. Actualmente no se usa, pero podría crearse una ventana de dialogo al principio del programa preguntando qué instrumento se quiere usar
-                    self.set_instrument(message[1])
-                elif message[0] == "x_driver.ask_control":
-                    self.x_driver_conn.send(["ask_control"])
-                    if self.x_driver_conn.poll(2.0):  # timeout 2s en vez de bloqueo infinito
-                        data = self.x_driver_conn.recv()[0]
-                        self.end_pipe.send([data])
-                    else:
-                        logger.warning('x_driver.ask_control: timeout esperando respuesta del driver')
-                elif message[0] == "x_driver.change_control":
-                    self.x_driver_conn.send(["change_control", message[1]])
-                elif message[0] == "z_driver.ask_control":
-                    self.z_driver_conn.send(["ask_control"])
-                    if self.z_driver_conn.poll(2.0):
-                        data = self.z_driver_conn.recv()[0]
-                        self.end_pipe.send([data])
-                    else:
-                        logger.warning('z_driver.ask_control: timeout esperando respuesta del driver')
-                elif message[0] == "z_driver.change_control":
-                    self.z_driver_conn.send(["change_control", message[1]])
-                elif message[0] == "alpha_driver.ask_control":
-                    self.alpha_driver_conn.send(["ask_control"])
-                    if self.alpha_driver_conn.poll(2.0):
-                        data = self.alpha_driver_conn.recv()[0]
-                        self.end_pipe.send([data])
-                    else:
-                        logger.warning('alpha_driver.ask_control: timeout esperando respuesta del driver')
-                elif message[0] == "alpha_driver.change_control":
-                    self.alpha_driver_conn.send(["change_control", message[1]])
-                elif message[0] == "change_flute_pos": # instruccion de actualizar la posicion en la que se encuentra el bisel de la flauta
-                    DATA['flute_position']['X_F'] = message[1]['X_F'] # se actualiza su ubicacion
-                    DATA['flute_position']['Z_F'] = message[1]['Z_F']
-                elif message[0] == "microphone.change_frequency_detection": # instruccion de cambiar los parametros de la deteccion de pitch
-                    self.mic_conn.send(["change_frequency_detection", message[1]]) # se reenvia el mensaje al objeto que se encarga del microfono
-                elif message[0] == "pivot": # instruccion de realizar un movimiento tipo pivote
-                    # esta funcion en verdad funciona muy parecido a una isntruccion load_routes seguida de una start_loaded_script, solo que no hace cambios en los dedos ni en el flujo.
-                    # recibe tres rutas, para el eje x, el eje z y el eje alpha
-                    route_x = message[1]
-                    route_z = message[2]
-                    route_a = message[3]
-                    move_t0 = time.perf_counter() - self.t0 + 0.2 # asignamos un tiempo de inicio dentro de 0.2 segundos
-                    for i in range(len(route_x)):
-                        route_x[i][0] += move_t0 # desfasamos el tiempo en las rutas para que calce con el tiempo actual
-                        route_z[i][0] += move_t0
-                        route_a[i][0] += move_t0
-                    # finalmente se envian las instrucciones a cada uno de los ejes virtuales
-                    if self.x_connect:
-                        self.x_virtual_axis_conn.send(["merge_ref", route_x])
-                    if self.z_connect:
-                        self.z_virtual_axis_conn.send(["merge_ref", route_z])
-                    if self.alpha_connect:
-                        self.alpha_virtual_axis_conn.send(["merge_ref", route_a])
+                    break
+                if not isinstance(message, (list, tuple)) or len(message) == 0:
+                    logger.warning(f'Musician: mensaje invalido recibido: {message!r}')
+                    continue
+                try:
+                    self._dispatch_message(message)
+                except (IndexError, KeyError, TypeError, ValueError) as e:
+                    logger.error(f'Musician: error procesando mensaje {message[0]!r}: {e}')
+                except (EOFError, BrokenPipeError, ConnectionResetError) as e:
+                    logger.critical(f'Musician: pipe roto al procesar {message[0]!r}: {e}. Deteniendo.')
+                    self.stop()
+                    break
         
         # antes de salir del programa, se esperan 0.5 segundos para despejar los eventos del microfono y de la central de comunicaciones
         time.sleep(0.5)
         self.mic_running.clear()
         self.comm_event.clear()
 
+
+    def _dispatch_message(self, message):
+        """Despacha un mensaje recibido desde la GUI al subsistema correspondiente."""
+        cmd = message[0]
+        if cmd == "execute_fingers_action":
+            self.virtual_fingers_conn.send(["merge_ref", [(0, message[1])]])
+        elif cmd == "execute_lips_surface_action":
+            self.virtual_fingers_conn.send(["merge_lips_surface_ref", [(0, message[1])]])
+        elif cmd == "execute_tongue_action":
+            self.virtual_fingers_conn.send(["merge_tongue_ref", [(0, message[1])]])
+        elif cmd == "move_to":
+            self.move_to(message[1], T=message[2], only_x=message[3], only_z=message[4], only_alpha=message[5], only_flow=message[6], speed=message[7])
+        elif cmd == "move_to_final":
+            desired = message[1]
+            self.x_virtual_axis_conn.send(["merge_ref", [(0, mm2units(desired.x), 0)]])
+            self.z_virtual_axis_conn.send(["merge_ref", [(0, mm2units(desired.z), 0)]])
+            self.alpha_virtual_axis_conn.send(["merge_ref", [(0, angle2units(desired.alpha), 0)]])
+            self.virtual_flow_conn.send(["merge_ref", [(0, desired.flow)], 0, 0])
+        elif cmd == "reset_x_controller":
+            pass  # TODO
+        elif cmd == "reset_z_controller":
+            pass  # TODO
+        elif cmd == "reset_alpha_controller":
+            pass  # TODO
+        elif cmd == "load_routes":
+            self.loaded_route_x = message[1]
+            self.loaded_route_z = message[2]
+            self.loaded_route_alpha = message[3]
+            self.loaded_route_flow = message[4]
+            self.loaded_route_notes = message[5]
+            self.loaded_route_aperture = message[6]
+            self.loaded_route_tongue = message[7]
+        elif cmd == "start_loaded_script":
+            if message[1]:
+                self.memory_conn.send(["start_saving"])
+                self.mic_conn.send(["start_saving"])
+            self.start_loaded_script()
+        elif cmd == "start_free_recording":
+            self.memory_conn.send(["start_saving"])
+            self.mic_conn.send(["start_saving"])
+        elif cmd == "stop_free_recording":
+            self.memory_conn.send(["stop_recording"])
+            self.mic_conn.send(["stop_recording"])
+            self.memory_conn.send(["save_recorded_data", message[1]])
+            self.mic_conn.send(["save_recorded_data", message[2]])
+        elif cmd == "stop_playing":
+            self.stop()
+            if message[1]:
+                self.memory_conn.send(["stop_recording"])
+                self.mic_conn.send(["stop_recording"])
+        elif cmd == "stop":
+            self.stop()
+            self.memory_conn.send(["stop_recording"])
+            self.mic_conn.send(["stop_recording"])
+        elif cmd == "emergency_stop":
+            self.emergency_stop()
+            self.memory_conn.send(["stop_recording"])
+            self.mic_conn.send(["stop_recording"])
+        elif cmd == "memory.save_recorded_data":
+            self.memory_conn.send(["save_recorded_data", message[1]])
+            self.mic_conn.send(["save_recorded_data", message[2]])
+        elif cmd == "flow_driver.change_controlled_var":
+            self.flow_driver_conn.send(["change_controlled_var", message[1]])
+        elif cmd == "flow_driver.change_control_loop":
+            self.flow_driver_conn.send(["change_control_loop", message[1]])
+        elif cmd == "flow_driver.change_kp":
+            self.flow_driver_conn.send(["change_kp", message[1]])
+        elif cmd == "flow_driver.change_ki":
+            self.flow_driver_conn.send(["change_ki", message[1]])
+        elif cmd == "flow_driver.change_kd":
+            self.flow_driver_conn.send(["change_kd", message[1]])
+        elif cmd == "set_instrument":
+            self.set_instrument(message[1])
+        elif cmd == "x_driver.ask_control":
+            self.x_driver_conn.send(["ask_control"])
+            if self.x_driver_conn.poll(2.0):
+                data = self.x_driver_conn.recv()[0]
+                self.end_pipe.send([data])
+            else:
+                logger.warning('x_driver.ask_control: timeout esperando respuesta del driver')
+        elif cmd == "x_driver.change_control":
+            self.x_driver_conn.send(["change_control", message[1]])
+        elif cmd == "z_driver.ask_control":
+            self.z_driver_conn.send(["ask_control"])
+            if self.z_driver_conn.poll(2.0):
+                data = self.z_driver_conn.recv()[0]
+                self.end_pipe.send([data])
+            else:
+                logger.warning('z_driver.ask_control: timeout esperando respuesta del driver')
+        elif cmd == "z_driver.change_control":
+            self.z_driver_conn.send(["change_control", message[1]])
+        elif cmd == "alpha_driver.ask_control":
+            self.alpha_driver_conn.send(["ask_control"])
+            if self.alpha_driver_conn.poll(2.0):
+                data = self.alpha_driver_conn.recv()[0]
+                self.end_pipe.send([data])
+            else:
+                logger.warning('alpha_driver.ask_control: timeout esperando respuesta del driver')
+        elif cmd == "alpha_driver.change_control":
+            self.alpha_driver_conn.send(["change_control", message[1]])
+        elif cmd == "change_flute_pos":
+            DATA['flute_position']['X_F'] = message[1]['X_F']
+            DATA['flute_position']['Z_F'] = message[1]['Z_F']
+        elif cmd == "microphone.change_frequency_detection":
+            self.mic_conn.send(["change_frequency_detection", message[1]])
+        elif cmd == "pivot":
+            route_x = message[1]
+            route_z = message[2]
+            route_a = message[3]
+            move_t0 = time.perf_counter() - self.t0 + 0.2
+            for i in range(len(route_x)):
+                route_x[i][0] += move_t0
+                route_z[i][0] += move_t0
+                route_a[i][0] += move_t0
+            if self.x_connect:
+                self.x_virtual_axis_conn.send(["merge_ref", route_x])
+            if self.z_connect:
+                self.z_virtual_axis_conn.send(["merge_ref", route_z])
+            if self.alpha_connect:
+                self.alpha_virtual_axis_conn.send(["merge_ref", route_a])
+        else:
+            logger.warning(f'Musician: comando desconocido: {cmd!r}')
 
     def set_instrument(self, instrument): # setea el instrumento que se esta usando
         self.instrument = instrument

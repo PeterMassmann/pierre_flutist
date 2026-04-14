@@ -708,7 +708,11 @@ class Window(QMainWindow, PlotWindow):
     def psmove(self):
         # Ejecutar el programa en C precompilado.
         # Ver documentación de psmoveapi para ver como compilar estos ejecutables. Los codigos fueron clonados de su github y modificados localmente. En /src/psmovapi se encuentran los scripts con los cambios
-        process = subprocess.Popen("C:/Users/ferna/Documents/psmoveapi/build-x64/psmove.exe test-tracker", stdout=subprocess.PIPE) # ejecutamos el programa precompilado
+        _psmove_path = os.path.join(os.path.dirname(__file__), '..', 'psmove', 'psmove.exe')
+        if not os.path.exists(_psmove_path):
+            logger.error(f"psmove.exe no encontrado en {_psmove_path}. Configurar la ruta en el código o colocar el ejecutable en la carpeta psmove/")
+            return
+        process = subprocess.Popen(f'"{_psmove_path}" test-tracker', stdout=subprocess.PIPE) # ejecutamos el programa precompilado
         
         # Creamos unos arreglos con los ultimos valores de l, theta y offset. Esto lo hacemos para usar filtros y evitar movimientos muy temblorosos por el ruido de las señales.
         self.ps_l_hist = self.data['radius'][-1]*np.ones([1000])

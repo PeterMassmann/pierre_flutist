@@ -12,9 +12,11 @@ from src.route import dict_notes, dict_notes_rev
 from src.cinematica import *
 from src.motor_route import *
 from time import time
+import os
 import numpy as np
 
-with open('src/look_up_table.json', 'r') as f:
+_LOOK_UP_TABLE_PATH = os.path.join(os.path.dirname(__file__), 'look_up_table.json')
+with open(_LOOK_UP_TABLE_PATH, 'r') as f:
     LOOK_UP_TABLE = json.load(f)
 
 
@@ -740,7 +742,7 @@ class ManualWindow(QMainWindow):
             return
 
         LOOK_UP_TABLE[key][key2] = new_value
-        with open('src/look_up_table.json', 'w') as file:
+        with open(_LOOK_UP_TABLE_PATH, 'w') as file:
             json.dump(LOOK_UP_TABLE, file, indent=4, sort_keys=False)
 
     # ===================== SAVE =====================

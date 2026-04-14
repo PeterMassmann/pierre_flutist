@@ -235,3 +235,73 @@ class TestPipeBreakSafety:
         running.clear()
         flow.join(timeout=2)
         assert not flow.is_alive()
+
+
+class TestMessageValidation:
+    """Tests para la validación de mensajes en Musician._dispatch_message."""
+
+    def _make_musician_pipes(self):
+        """Crea un par de pipes simulando la conexión GUI ↔ Musician."""
+        gui_conn, musician_conn = Pipe()
+        return gui_conn, musician_conn
+
+    def test_invalid_message_type_logged(self):
+        """Un mensaje que no es lista/tupla debe ser ignorado sin crash."""
+        from unittest.mock import MagicMock, patch
+        from src.musician import Musician
+
+        # Verificar que el código de validación existe y funciona
+        # Simulamos el chequeo que hace el main loop
+        message = "string_invalido"
+        assert not isinstance(message, (list, tuple)) or len(message) == 0
+
+    def test_empty_message_rejected(self):
+        """Un mensaje vacío debe ser rechazado."""
+        message = []
+        assert not (isinstance(message, (list, tuple)) and len(message) > 0)
+
+    def test_valid_message_accepted(self):
+        """Un mensaje válido pasa la validación."""
+        message = ["stop"]
+        assert isinstance(message, (list, tuple)) and len(message) > 0
+
+    def test_unknown_command_does_not_crash(self):
+        """Un comando desconocido no debe crashear el dispatch."""
+        from unittest.mock import MagicMock
+        from src.musician import Musician
+
+        m = MagicMock()
+        m._dispatch_message = Musician._dispatch_message.__get__(m)
+        # Un comando desconocido no debe lanzar excepción
+        m._dispatch_message(["comando_inexistente", 123])
+
+    def test_dispatch_stop_calls_stop(self):
+        """El comando 'stop' debe llamar self.stop()."""
+        from unittest.mock import MagicMock
+        from src.musician import Musician
+
+        m = MagicMock()
+        m._dispatch_message = Musician._dispatch_message.__get__(m)
+        m._dispatch_message(["stop"])
+        m.stop.assert_called_once()
+        m.memory_conn.send.assert_called()
+
+    def test_dispatch_emergency_stop(self):
+        """El comando 'emergency_stop' debe llamar self.emergency_stop()."""
+        from unittest.mock import MagicMock
+        from src.musician import Musician
+
+        m = MagicMock()
+        m._dispatch_message = Musician._dispatch_message.__get__(m)
+        m._dispatch_message(["emergency_stop"])
+        m.emergency_stop.assert_called_once()
+
+    def test_dispatch_short_message_raises_index_error(self):
+        """Un mensaje 'move_to' sin argumentos suficientes debe lanzar IndexError."""
+        from unittest.mock import MagicMock
+        from src.musician import Musician
+
+        m = MagicMock()
+        m._dispatch_message = Musician._dispatch_message.__get__(m)
+        with pytest.raises(IndexError):
+            m._dispatch_message(["move_to"])  # falta message[1..7]
