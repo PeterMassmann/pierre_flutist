@@ -17,7 +17,6 @@ if __name__ == '__main__':
     if os.path.exists(theme_path):
         with open(theme_path, "r") as f:
             app.setStyleSheet(f.read())
-
     ## Leer configuración de red desde settings.json
     settings_path = os.path.join(os.path.dirname(__file__), "src", "settings.json")
     with open(settings_path, "r") as f:
@@ -25,6 +24,7 @@ if __name__ == '__main__':
     net = settings.get("network", {})
     host = net.get("host", "192.168.2.10")
     connections = [
+
         net.get("x_driver", "192.168.2.102"),
         net.get("z_driver", "192.168.2.104"),
         net.get("alpha_driver", "192.168.2.103"),

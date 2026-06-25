@@ -1,9 +1,11 @@
 from multiprocessing import Process, Event, Value, Pipe
 import time
 import logging
+import math
 import pandas as pd
-from src.drivers import DATA, AMCIDriver, INPUT_FUNCTION_BITS, FlowControllerDriver, FingersDriver, PressureSensor, Microphone, SAFETY_WATCHDOG_TIMEOUT
+from src.drivers import DATA, AMCIDriver, INPUT_FUNCTION_BITS, FlowControllerDriver, FingersDriver, PressureSensor, Microphone, SAFETY_WATCHDOG_TIMEOUT, SAFETY_POS_LIMITS
 from src.communication import CommunicationCenter
+from src.led_control_driver import LEDControlDriver
 from src.motor_route import *
 from src.route import *
 from src.cinematica import *
@@ -123,6 +125,13 @@ class Musician(Process):
         # los parametros de la deteccion de pitch, asi como el dispositivo que se usa se toman de settings.json. Si el dispositivo indicado no existe puede lanzar error. En ese caso cambiar a un dispositivo que si exista. Ver sd.query_devices() en tal caso
         self.microphone = Microphone(self.running, mic_end_conn, DATA['frequency_detection']['device'], DATA['frequency_detection']['method'], DATA['frequency_detection']['YIN'], DATA['frequency_detection']['pYIN'], self.mic_running, connected=self.mic_connect, verbose=False)
 
+        ## Driver de control por LEDs. Parte en idle y abre la camara solo al recibir start.
+        self.led_control_conn, led_control_end_conn = Pipe()
+        self.led_control_driver = LEDControlDriver(self.running, led_control_end_conn, DATA.get('led_control', {}), verbose=False)
+        self.led_control_active = False
+        self.data['led_control_active'] = False
+        self.data['led_control_status'] = 'LED control idle'
+
         print("Drivers created...\nCreating memory...")
         ## se crearon todos los drivers que interactuan con dispositivos, ahora se crea un objeto 'memoria' que se ocupa de leer todos los sensores de forma sincrona y llevar un registro de sus lecturas
         self.memory_conn, memory_end_conn = Pipe() # tambien se crea un pipe para conectarse a este objeto y enviarle instrucciones como que empiece o termine de grabar
@@ -140,6 +149,7 @@ class Musician(Process):
         self.preasure_sensor.start()
 
         self.microphone.start()
+        self.led_control_driver.start()
 
         self.end_pipe.send(['instances created']) # se avisa a la interfaz grafica que ya se crearon y corrieron todas las instancias para avanzar en la carga de la ventana de start-up. Aun queda que cada driver termine sus rutinas de inicio
         print("Pierre started listening...")
@@ -219,8 +229,13 @@ class Musician(Process):
                     logger.critical(f'Musician: pipe roto al procesar {message[0]!r}: {e}. Deteniendo.')
                     self.stop()
                     break
+            self._poll_led_control_driver()
         
         # antes de salir del programa, se esperan 0.5 segundos para despejar los eventos del microfono y de la central de comunicaciones
+        try:
+            self.led_control_conn.send(["shutdown"])
+        except Exception:
+            pass
         time.sleep(0.5)
         self.mic_running.clear()
         self.comm_event.clear()
@@ -243,6 +258,10 @@ class Musician(Process):
             self.z_virtual_axis_conn.send(["merge_ref", [(0, mm2units(desired.z), 0)]])
             self.alpha_virtual_axis_conn.send(["merge_ref", [(0, angle2units(desired.alpha), 0)]])
             self.virtual_flow_conn.send(["merge_ref", [(0, desired.flow)], 0, 0])
+        elif cmd == "led_control.start":
+            self.start_led_control()
+        elif cmd == "led_control.stop":
+            self.stop_led_control()
         elif cmd == "reset_x_controller":
             pass  # TODO
         elif cmd == "reset_z_controller":
@@ -347,6 +366,142 @@ class Musician(Process):
                 self.alpha_virtual_axis_conn.send(["merge_ref", route_a])
         else:
             logger.warning(f'Musician: comando desconocido: {cmd!r}')
+
+    def _poll_led_control_driver(self):
+        if not hasattr(self, 'led_control_conn'):
+            return
+
+        while self.led_control_conn.poll():
+            try:
+                message = self.led_control_conn.recv()
+            except (EOFError, BrokenPipeError, ConnectionResetError):
+                logger.error('Pipe con LEDControlDriver roto.')
+                self._set_led_control_status(False, 'LED control pipe error')
+                return
+
+            if not isinstance(message, (list, tuple)) or len(message) == 0:
+                continue
+
+            cmd = message[0]
+            if cmd == "led_control_driver_started":
+                self._set_led_control_status(False, 'LED control ready')
+            elif cmd == "led_control_status":
+                state = message[1]
+                detail = message[2] if len(message) > 2 else state
+                self._set_led_control_status(state in ("starting", "active", "holding"), detail)
+            elif cmd == "led_control_stopped":
+                reason = message[1] if len(message) > 1 else "stopped"
+                self._set_led_control_status(False, f'LED control stopped: {reason}')
+            elif cmd == "led_control_target":
+                try:
+                    self._apply_led_control_target(message[1], message[2])
+                except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
+                    logger.error(f"Target LED invalido. Abortando control por LEDs: {exc}")
+                    self._set_led_control_status(False, f'LED control abortado: {exc}')
+                    self._send_led_control_stop()
+                    self._hold_position_axes()
+            else:
+                logger.warning(f'Musician: mensaje desconocido desde LEDControlDriver: {cmd!r}')
+
+    def _set_led_control_status(self, active, status):
+        self.led_control_active = bool(active)
+        self.data['led_control_active'] = bool(active)
+        self.data['led_control_status'] = str(status)
+
+    def _send_led_control_stop(self):
+        if hasattr(self, 'led_control_conn'):
+            try:
+                self.led_control_conn.send(["stop"])
+            except Exception:
+                logger.debug("No se pudo enviar stop a LEDControlDriver", exc_info=True)
+
+    def _hold_position_axes(self):
+        self.x_virtual_axis_conn.send(["stop"])
+        self.z_virtual_axis_conn.send(["stop"])
+        self.alpha_virtual_axis_conn.send(["stop"])
+
+    def start_led_control(self):
+        base_state = self._get_led_control_base_state()
+        self._hold_position_axes()
+        self._set_led_control_status(True, 'Starting LED control')
+        self.led_control_conn.send(["start", base_state])
+
+    def stop_led_control(self):
+        self._send_led_control_stop()
+        self._hold_position_axes()
+        self._set_led_control_status(False, 'LED control stopped')
+
+    def _get_led_control_base_state(self):
+        state = State(0, 0, 0, 0)
+        try:
+            state.x = encoder_units_to_mm(self.x_driver.encoder_position.value)
+            state.z = encoder_units_to_mm(self.z_driver.encoder_position.value)
+            state.alpha = encoder_units_to_angle(self.alpha_driver.encoder_position.value)
+            state.flow = self.flow_driver.mass_flow_reading.value
+            state.lips = self.fingers_driver.lips_played.value
+            state.tongue = self.fingers_driver.tongue_played.value
+        except Exception:
+            logger.warning("No se pudo leer base desde drivers; usando data compartida.", exc_info=True)
+            state.r = float(self.data['radius'][-1])
+            state.theta = float(self.data['theta'][-1])
+            state.o = float(self.data['offset'][-1])
+            state.flow = float(self.data['mass_flow'][-1])
+            state.lips = int(self.data['lips'][-1])
+            state.tongue = int(self.data['tongue'][-1])
+
+        return {
+            "x": state.x,
+            "z": state.z,
+            "alpha": state.alpha,
+            "r": state.r,
+            "theta": state.theta,
+            "o": state.o,
+            "flow": state.flow,
+            "lips": state.lips,
+            "tongue": state.tongue,
+        }
+
+    def _apply_led_control_target(self, target, measurement):
+        if not self.led_control_active:
+            return
+
+        target_x = float(target["x"])
+        target_z = float(target["z"])
+        target_alpha = float(target["alpha"])
+
+        self._validate_led_control_state(target_x, target_z, target_alpha)
+        self.x_virtual_axis_conn.send(["merge_ref", [(0, x_mm_to_units(target_x), 0)]])
+        self.z_virtual_axis_conn.send(["merge_ref", [(0, z_mm_to_units(target_z), 0)]])
+        self.alpha_virtual_axis_conn.send(["merge_ref", [(0, alpha_angle_to_units(target_alpha), 0)]])
+
+        self.data['led_control_last_target'] = {
+            "x": target_x,
+            "z": target_z,
+            "alpha": target_alpha,
+            "camera_x": float(measurement.get("camera_x_depth", target.get("camera_x", 0.0))),
+            "camera_z": float(measurement.get("camera_z_vertical", target.get("camera_z", 0.0))),
+            "camera_distance": float(measurement.get("camera_distance_xz", target.get("camera_distance", 0.0))),
+            "tilt": float(measurement.get("tilt_deg", target.get("tilt", 0.0))),
+            "n_delta": float(target.get("n_delta", 0.0)),
+            "perp_delta": float(target.get("perp_delta", 0.0)),
+            "alpha_delta": float(target.get("alpha_delta", 0.0)),
+        }
+
+    def _validate_led_control_state(self, target_x, target_z, target_alpha):
+        values = [target_x, target_z, target_alpha]
+        if not all(math.isfinite(float(value)) for value in values):
+            raise ValueError("target contiene valores no finitos")
+
+        x_steps = x_mm_to_units(target_x)
+        z_steps = z_mm_to_units(target_z)
+        alpha_steps = alpha_angle_to_units(target_alpha)
+
+        if not (SAFETY_POS_LIMITS['x_min'] <= x_steps <= SAFETY_POS_LIMITS['x_max']):
+            raise ValueError(f"X fuera de limites ({x_steps} steps)")
+        if not (SAFETY_POS_LIMITS['z_min'] <= z_steps <= SAFETY_POS_LIMITS['z_max']):
+            raise ValueError(f"Z fuera de limites ({z_steps} steps)")
+        if not (SAFETY_POS_LIMITS['alpha_min'] <= alpha_steps <= SAFETY_POS_LIMITS['alpha_max']):
+            raise ValueError(f"Alpha fuera de limites ({alpha_steps} steps)")
 
     def set_instrument(self, instrument): # setea el instrumento que se esta usando
         self.instrument = instrument
@@ -485,6 +640,8 @@ class Musician(Process):
             self.virtual_fingers_conn.send(["merge_tongue_ref", self.loaded_route_tongue])
 
     def stop(self): # detiene cada uno de los dispositivos (soft stop via ejes virtuales)
+        self._send_led_control_stop()
+        self._set_led_control_status(False, 'LED control stopped')
         self.x_virtual_axis_conn.send(["stop"])
         self.z_virtual_axis_conn.send(["stop"])
         self.alpha_virtual_axis_conn.send(["stop"])
@@ -499,6 +656,8 @@ class Musician(Process):
         logger.critical("EMERGENCY STOP activado — deteniendo todos los dispositivos")
         # Soft stop de ejes virtuales para detener la generacion de trayectoria
         try:
+            self._send_led_control_stop()
+            self._set_led_control_status(False, 'LED control emergency stop')
             self.x_virtual_axis_conn.send(["stop"])
             self.z_virtual_axis_conn.send(["stop"])
             self.alpha_virtual_axis_conn.send(["stop"])

@@ -339,6 +339,18 @@ class ManualWindow(QMainWindow):
         ffg.addWidget(self.setNoteDictionary, 2, 0, 1, 2)
         right_col.addWidget(fingers_group)
 
+        # External control
+        external_group = QGroupBox("Control externo")
+        eg = QGridLayout(external_group)
+        self.psMoveButton = QPushButton("PS Move")
+        self.psMoveButton.setToolTip("Iniciar control con PS Move")
+        self.ledControlButton = QPushButton("Control LEDs")
+        self.ledControlButton.setCheckable(True)
+        self.ledControlButton.setToolTip("Iniciar control por LEDs usando la pose actual como referencia")
+        eg.addWidget(self.psMoveButton, 0, 0)
+        eg.addWidget(self.ledControlButton, 0, 1)
+        right_col.addWidget(external_group)
+
         # Status
         status_group = QGroupBox("Estado")
         sg = QHBoxLayout(status_group)
@@ -429,6 +441,10 @@ class ManualWindow(QMainWindow):
         self.moveToNoteCheckBox.stateChanged.connect(self.move_to_notes_change)
         self.setNoteDictionary.clicked.connect(self.set_note_in_dictionary)
 
+        # External control
+        self.psMoveButton.clicked.connect(self.start_ps_move_control)
+        self.ledControlButton.toggled.connect(self.toggle_led_control)
+
         # Speed
         self.speedSlider1.valueChanged.connect(self.change_speed)
 
@@ -494,10 +510,28 @@ class ManualWindow(QMainWindow):
                 "background: #E8F5E9; color: #2E7D32; font-weight: bold; "
                 "padding: 6px; border-radius: 4px;")
 
+        try:
+            led_active = bool(self.data.get('led_control_active', False))
+            led_status = str(self.data.get('led_control_status', ''))
+        except Exception:
+            led_active = False
+            led_status = ''
+
+        if led_active:
+            self._set_led_button_state(True)
+            self.status_label.setText(led_status.upper())
+            self.status_label.setStyleSheet(
+                "background: #E3F2FD; color: #0D47A1; font-weight: bold; "
+                "padding: 6px; border-radius: 4px;")
+        elif self.ledControlButton.isChecked():
+            self._set_led_button_state(False)
+
     # ===================== STOP =====================
 
     def stop_movement(self):
         """Para todos los ejes inmediatamente."""
+        self.musician_pipe.send(["led_control.stop"])
+        self._set_led_button_state(False)
         self.musician_pipe.send(["stop"])
         # Actualizar desired_state a posición actual para evitar re-movimiento
         try:
@@ -621,6 +655,31 @@ class ManualWindow(QMainWindow):
     def change_speed(self, value):
         self.speed = value
         self.speed_label.setText(f"{value}%")
+
+    # ===================== EXTERNAL CONTROL =====================
+
+    def start_ps_move_control(self):
+        if self.parent_win is not None and hasattr(self.parent_win, "ps_control"):
+            self.parent_win.ps_control()
+
+    def toggle_led_control(self, checked):
+        if checked:
+            self.musician_pipe.send(["led_control.start"])
+            self._set_led_button_state(True)
+        else:
+            self.musician_pipe.send(["led_control.stop"])
+            self._set_led_button_state(False)
+
+    def _set_led_button_state(self, active):
+        self.ledControlButton.blockSignals(True)
+        self.ledControlButton.setChecked(active)
+        self.ledControlButton.setText("Detener LEDs" if active else "Control LEDs")
+        self.ledControlButton.blockSignals(False)
+
+    def closeEvent(self, event):
+        if self.ledControlButton.isChecked():
+            self.musician_pipe.send(["led_control.stop"])
+        super().closeEvent(event)
 
     # ===================== FINGERS =====================
 
