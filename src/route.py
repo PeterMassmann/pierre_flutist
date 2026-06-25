@@ -277,6 +277,7 @@ def calculate_route(route):
 
 ## estos diccionarios los usamos para traducir las notas a numeros y viceversa. Sirve para graficarlos en el plano y para interpretar sobre que nota se hace click cuando el usuario interactua con el grafico de las notas
 dict_notes = {0.0: 'D3', 0.5: 'D#3', 1.0: 'E3', 1.5: 'F3', 2.0: 'F#3', 2.5: 'G3', 3.0: 'G#3', 3.5: 'A3', 4.0: 'A#3', 4.5: 'B3', 5.0: 'C4', 5.5: 'C#4', 6.0: 'D4', 6.5: 'D#4', 7.0: 'E4', 7.5: 'F4', 8.0: 'F#4', 8.5: 'G4', 9.0: 'G#4', 9.5: 'A4', 10.0: 'A#4', 10.5: 'B4', 11.0: 'C5', 11.5: 'C#5', 12.0: 'D5', 12.5: 'D#5', 13.0: 'E5', 13.5: 'F5', 14.0: 'F#5', 14.5: 'G5', 15.0: 'G#5', 15.5: 'A5', 17.0: 'C6'}
+# dict_notes = {0.0: '0', 1.0: '1', 2.0: '2', 3.0: '3', 4.0: '4', 5.0: '5', 6.0: '6', 7.0: '7', 8.0: '8', 9.0: '9'} # Cambiamos el diccionario dependiendo del instrumento que se esté usando
 dict_notes_rev = {} # creamos el diccionario inverso
 for key, item in dict_notes.items():
     dict_notes_rev[item] = key
