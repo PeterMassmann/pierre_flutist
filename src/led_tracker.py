@@ -22,6 +22,8 @@ DEFAULT_LED_TRACKER_CONFIG = {
     "camera_wb_temperature": None,
     "flip_camera_x": True,
     "tip_color": "red",
+    "reference_point_px": None,
+    "invalid_zone_overlay_alpha": 0.55,
     "red_blue_distance": 12.2,
     "flute_safety_radius_cm": 6.0,
     "light_low_hsv": [0, 0, 200],
@@ -163,6 +165,8 @@ class LEDPoseTracker:
         self.last_assignment_info = {}
         self.last_pose_rejection_reason = None
         self.consecutive_rejects = 0
+        self.reference_point_px = self._parse_reference_point(self.config.get("reference_point_px"))
+        self.mouse_callback_ready = False
         self.camera_x_history = []
         self.camera_z_history = []
         self.tilt_history = []
@@ -184,6 +188,7 @@ class LEDPoseTracker:
         self.camera_wb_temperature = _optional_float(cfg.get("camera_wb_temperature"))
         self.flip_camera_x = bool(cfg["flip_camera_x"])
         self.tip_color = str(cfg["tip_color"])
+        self.invalid_zone_overlay_alpha = float(cfg["invalid_zone_overlay_alpha"])
 
         self.red_blue_distance = float(cfg["red_blue_distance"])
         self.flute_safety_radius_cm = float(cfg["flute_safety_radius_cm"])
@@ -253,6 +258,8 @@ class LEDPoseTracker:
             raise ValueError("flute_safety_radius_cm debe ser mayor o igual a cero.")
         if self.tip_color not in COLORS:
             raise ValueError("tip_color debe ser red o blue.")
+        if self.invalid_zone_overlay_alpha < 0.0 or self.invalid_zone_overlay_alpha > 1.0:
+            raise ValueError("invalid_zone_overlay_alpha debe estar entre 0 y 1.")
         if self.blur_kernel_size < 1 or self.blur_kernel_size % 2 == 0:
             raise ValueError("blur_kernel_size debe ser impar y mayor o igual a 1.")
         if self.candidate_mask_mode not in {"light", "color", "light_or_color"}:
@@ -279,6 +286,64 @@ class LEDPoseTracker:
             raise ValueError("moving_average_n debe ser mayor o igual a 1.")
         if self.min_led_pair_distance_px <= 0:
             raise ValueError("min_led_pair_distance_px debe ser mayor que cero.")
+
+    def _parse_reference_point(self, value):
+        if value is None:
+            return None
+        if not isinstance(value, (list, tuple)) or len(value) != 2:
+            raise ValueError("reference_point_px debe ser null o [x, y].")
+        return np.array([float(value[0]), float(value[1])], dtype=np.float32)
+
+    def _get_reference_point(self, frame):
+        height, width = frame.shape[:2]
+        if self.reference_point_px is None:
+            return np.array([width - 1, height - 1], dtype=np.float32)
+
+        x = min(max(float(self.reference_point_px[0]), 0.0), float(width - 1))
+        y = min(max(float(self.reference_point_px[1]), 0.0), float(height - 1))
+        return np.array([x, y], dtype=np.float32)
+
+    def _apply_reference_valid_area(self, mask, reference_point):
+        clipped = mask.copy()
+        ref_x, ref_y = reference_point.astype(int)
+        height, width = clipped.shape[:2]
+
+        if ref_x + 1 < width:
+            clipped[:, ref_x + 1:] = 0
+        if ref_y + 1 < height:
+            clipped[ref_y + 1:, :] = 0
+
+        return clipped
+
+    def _draw_invalid_zone_overlay(self, frame, reference_point):
+        alpha = self.invalid_zone_overlay_alpha
+        if alpha <= 0.0:
+            return
+
+        ref_x, ref_y = reference_point.astype(int)
+        height, width = frame.shape[:2]
+        overlay = frame.copy()
+
+        if ref_x + 1 < width:
+            cv2.rectangle(overlay, (ref_x + 1, 0), (width - 1, height - 1), (0, 0, 0), -1)
+        if ref_y + 1 < height:
+            cv2.rectangle(overlay, (0, ref_y + 1), (width - 1, height - 1), (0, 0, 0), -1)
+
+        cv2.addWeighted(overlay, alpha, frame, 1.0 - alpha, 0, frame)
+
+    def _on_camera_mouse(self, event, x, y, _flags, _param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.reference_point_px = np.array([x, y], dtype=np.float32)
+        elif event == cv2.EVENT_RBUTTONDOWN:
+            self.reference_point_px = None
+
+    def _ensure_mouse_callback(self):
+        if self.mouse_callback_ready or not self.show_windows:
+            return
+
+        cv2.namedWindow(self.camera_window_name)
+        cv2.setMouseCallback(self.camera_window_name, self._on_camera_mouse)
+        self.mouse_callback_ready = True
 
     def open(self):
         self.cap = cv2.VideoCapture(self.camera_index)
@@ -320,6 +385,7 @@ class LEDPoseTracker:
                 cv2.destroyWindow(self.plot_window_name)
             except cv2.error:
                 pass
+        self.mouse_callback_ready = False
 
     def _create_mask(self, hsv_frame, low_hsv, high_hsv, low_hsv_2=None, high_hsv_2=None):
         mask = cv2.inRange(hsv_frame, low_hsv, high_hsv)
@@ -576,14 +642,12 @@ class LEDPoseTracker:
             for color in COLORS
         }
 
-    def _estimate_2d_pose(self, centers, frame):
+    def _estimate_2d_pose(self, centers, frame, reference_point):
         red_center = centers["red"]
         blue_center = centers["blue"]
         if red_center is None or blue_center is None:
             return None
 
-        frame_height, frame_width = frame.shape[:2]
-        reference_corner = np.array([frame_width - 1, frame_height - 1], dtype=np.float32)
         tip_center = centers[self.tip_color]
         tail_color = "blue" if self.tip_color == "red" else "red"
         tail_center = centers[tail_color]
@@ -596,9 +660,9 @@ class LEDPoseTracker:
             return None
 
         cm_per_px = self.red_blue_distance / led_distance_px
-        tip_from_corner_px = tip_center - reference_corner
-        camera_x_cm = float(tip_from_corner_px[0] * cm_per_px)
-        camera_z_cm = float(tip_from_corner_px[1] * cm_per_px)
+        tip_from_reference_px = tip_center - reference_point
+        camera_x_cm = float(tip_from_reference_px[0] * cm_per_px)
+        camera_z_cm = float(tip_from_reference_px[1] * cm_per_px)
         camera_distance_cm = math.hypot(camera_x_cm, camera_z_cm)
         angle_deg = math.degrees(math.atan2(float(led_vector_px[1]), float(led_vector_px[0])))
         angle_deg = _angle_difference_deg(angle_deg, 0.0)
@@ -621,7 +685,8 @@ class LEDPoseTracker:
             "raw_tilt_deg": angle_deg,
             "cm_per_px": cm_per_px,
             "led_distance_px": led_distance_px,
-            "reference_corner_px": reference_corner,
+            "reference_corner_px": reference_point.copy(),
+            "reference_point_px": reference_point.copy(),
             "red_center_px": red_center.copy(),
             "blue_center_px": blue_center.copy(),
             "tip_color": self.tip_color,
@@ -728,6 +793,7 @@ class LEDPoseTracker:
             "cm_per_px": raw_pose.get("cm_per_px"),
             "led_distance_px": raw_pose.get("led_distance_px"),
             "reference_corner_px": raw_pose.get("reference_corner_px"),
+            "reference_point_px": raw_pose.get("reference_point_px", raw_pose.get("reference_corner_px")),
             "red_center_px": raw_pose.get("red_center_px"),
             "blue_center_px": raw_pose.get("blue_center_px"),
             "tip_color": raw_pose.get("tip_color", self.tip_color),
@@ -945,6 +1011,7 @@ class LEDPoseTracker:
         if self.flip_camera_x:
             frame = cv2.flip(frame, 1)
 
+        reference_point = self._get_reference_point(frame)
         blurred = cv2.GaussianBlur(
             frame,
             (self.blur_kernel_size, self.blur_kernel_size),
@@ -961,11 +1028,14 @@ class LEDPoseTracker:
             self.red_high_hsv_2,
         )
         blue_mask = self._create_mask(hsv, self.blue_low_hsv, self.blue_high_hsv)
+        light_mask = self._apply_reference_valid_area(light_mask, reference_point)
+        red_mask = self._apply_reference_valid_area(red_mask, reference_point)
+        blue_mask = self._apply_reference_valid_area(blue_mask, reference_point)
         candidate_mask = self._build_candidate_mask(light_mask, red_mask, blue_mask)
 
         candidates = self._find_light_candidates(candidate_mask)
         centers = self._assign_colors_to_candidates(candidates, red_mask, blue_mask)
-        new_pose = self._estimate_2d_pose(centers, frame)
+        new_pose = self._estimate_2d_pose(centers, frame, reference_point)
         accepted_pose, was_accepted = self._apply_pose_jump_rejection(new_pose)
 
         if was_accepted and accepted_pose is not None:
@@ -986,7 +1056,7 @@ class LEDPoseTracker:
         _trim_history(self.camera_z_history, now, self.plot_history_seconds)
         _trim_history(self.tilt_history, now, self.plot_history_seconds)
 
-        display = self._create_detection_image(frame, candidates, centers, measurement)
+        display = self._create_detection_image(frame, candidates, centers, measurement, reference_point)
         plot_image = self._create_realtime_plot_image(now)
         return measurement, display, plot_image, now, None
 
@@ -1029,9 +1099,8 @@ class LEDPoseTracker:
                 cv2.LINE_AA,
             )
 
-    def _draw_reference_corner(self, frame, measurement):
-        height, width = frame.shape[:2]
-        origin = (width - 1, height - 1)
+    def _draw_reference_point(self, frame, measurement, reference_point):
+        origin = tuple(reference_point.astype(int))
         safety_color = (0, 220, 255)
         cm_per_px = measurement.get("cm_per_px") if measurement is not None else None
 
@@ -1055,11 +1124,11 @@ class LEDPoseTracker:
             )
 
         cv2.circle(frame, origin, 8, (255, 255, 255), 2)
-        cv2.line(frame, (origin[0] - 35, origin[1]), origin, (255, 255, 255), 1)
-        cv2.line(frame, (origin[0], origin[1] - 35), origin, (255, 255, 255), 1)
+        cv2.line(frame, (max(0, origin[0] - 35), origin[1]), origin, (255, 255, 255), 1)
+        cv2.line(frame, (origin[0], max(0, origin[1] - 35)), origin, (255, 255, 255), 1)
         cv2.putText(
             frame,
-            "0,0",
+            "Centro flauta",
             (max(0, origin[0] - 48), max(18, origin[1] - 12)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.55,
@@ -1075,23 +1144,24 @@ class LEDPoseTracker:
         x, y = center.astype(int)
         return f"({x}, {y})"
 
-    def _create_detection_image(self, frame, candidates, centers, measurement):
+    def _create_detection_image(self, frame, candidates, centers, measurement, reference_point):
         display = frame.copy()
         red_center = centers["red"]
         blue_center = centers["blue"]
 
+        self._draw_invalid_zone_overlay(display, reference_point)
         self._draw_candidate_contours(display, candidates)
-        self._draw_reference_corner(display, measurement)
+        self._draw_reference_point(display, measurement, reference_point)
         self._draw_line(display, blue_center, red_center)
         red_label = "Rojo/punta" if self.tip_color == "red" else "Rojo"
         blue_label = "Azul/punta" if self.tip_color == "blue" else "Azul"
         self._draw_marker(display, red_center, (0, 0, 255), red_label)
         self._draw_marker(display, blue_center, (255, 0, 0), blue_label)
 
-        self._draw_status(display, centers, measurement, len(candidates))
+        self._draw_status(display, centers, measurement, len(candidates), reference_point)
         return display
 
-    def _draw_status(self, frame, centers, measurement, candidate_count):
+    def _draw_status(self, frame, centers, measurement, candidate_count, reference_point):
         assignment_reason = self.last_assignment_info.get("reason", "unknown")
         pose_reason = self.last_pose_rejection_reason
         status = pose_reason or assignment_reason
@@ -1104,6 +1174,7 @@ class LEDPoseTracker:
             angle_label = "Alpha cam: --"
             scale_label = "Escala: --"
             safety_label = "Radio seguridad: --"
+            reference_label = f"Centro px: {self._format_center(reference_point)}"
         else:
             x_label = f"X cm: {measurement['camera_x_depth']:.3f}"
             z_label = f"Z cm: {measurement['camera_z_vertical']:.3f}"
@@ -1111,6 +1182,7 @@ class LEDPoseTracker:
             cm_per_px = measurement.get("cm_per_px")
             scale_label = "Escala: --" if cm_per_px is None else f"Escala: {cm_per_px:.5f} cm/px"
             safety_label = f"Radio seguridad: {self.flute_safety_radius_cm:.1f} cm"
+            reference_label = f"Centro px: {self._format_center(reference_point)}"
 
         rows = [
             x_label,
@@ -1118,6 +1190,7 @@ class LEDPoseTracker:
             angle_label,
             scale_label,
             safety_label,
+            reference_label,
             f"Rojo px: {self._format_center(centers['red'])}",
             f"Azul px: {self._format_center(centers['blue'])}",
             f"Punta: {self.tip_color}",
@@ -1156,6 +1229,7 @@ class LEDPoseTracker:
         if not self.show_windows or display is None or plot_image is None:
             return None
 
+        self._ensure_mouse_callback()
         cv2.imshow(self.camera_window_name, display)
         cv2.imshow(self.plot_window_name, plot_image)
         return cv2.waitKey(1) & 0xFF

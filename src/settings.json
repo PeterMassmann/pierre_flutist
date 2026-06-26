@@ -46,6 +46,8 @@
         "camera_wb_temperature": null,
         "flip_camera_x": true,
         "tip_color": "red",
+        "reference_point_px": null,
+        "invalid_zone_overlay_alpha": 0.55,
         "distance_amplification": 0.025,
         "mouth_tip_offset_cm": 4.5,
         "flute_center_offset_cm": 6.0,
