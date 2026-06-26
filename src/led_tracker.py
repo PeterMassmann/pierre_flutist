@@ -20,50 +20,21 @@ DEFAULT_LED_TRACKER_CONFIG = {
     "camera_gain": None,
     "camera_auto_wb": None,
     "camera_wb_temperature": None,
-    "red_green_distance": 9.0,
+    "flip_camera_x": True,
+    "tip_color": "red",
     "red_blue_distance": 12.2,
-    "green_blue_distance": 9.0,
-    "yellow_red_distance": 9.0,
-    "yellow_blue_distance": 9.0,
-    "yellow_plane_offset_z": -2.7,
-    "camera_matrix": [
-        [913.94, 0.0, 640.0],
-        [0.0, 913.94, 360.0],
-        [0.0, 0.0, 1.0],
-    ],
-    "dist_coeffs": [0.0, 0.0, 0.0, 0.0, 0.0],
-    "approx_focal_length_factor": 1.0,
-    "use_previous_pose_guess": True,
-    "reject_tilt_jumps": True,
-    "max_tilt_jump_deg": 6.0,
-    "reject_position_jumps": True,
-    "max_camera_x_jump": 8.0,
-    "max_camera_z_jump": 8.0,
-    "max_camera_distance_jump": 10.0,
-    "max_consecutive_rejects": 8,
-    "print_rejected_frames": True,
-    "reject_reprojection_errors": True,
-    "max_mean_reprojection_error_px": 8.0,
-    "max_reprojection_error_px": 15.0,
-    "reject_bad_image_geometry": True,
-    "min_led_pair_distance_px": 3.0,
-    "min_rgb_triangle_area_px2": 8.0,
-    "min_yellow_triangle_area_px2": 6.0,
-    "min_image_geometry_scale": 0.35,
-    "max_image_geometry_scale": 2.8,
-    "light_low_hsv": [80, 0, 200],
-    "light_high_hsv": [100, 10, 255],
+    "flute_safety_radius_cm": 6.0,
+    "light_low_hsv": [0, 0, 200],
+    "light_high_hsv": [179, 10, 255],
     "red_low_hsv": [0, 120, 120],
     "red_high_hsv": [10, 255, 255],
     "red_low_hsv_2": [170, 120, 120],
     "red_high_hsv_2": [179, 255, 255],
-    "green_low_hsv": [35, 80, 80],
-    "green_high_hsv": [85, 255, 255],
     "blue_low_hsv": [90, 80, 80],
     "blue_high_hsv": [130, 255, 255],
-    "yellow_low_hsv": [18, 80, 80],
-    "yellow_high_hsv": [38, 255, 255],
-    "min_light_area": 20,
+    "candidate_mask_mode": "light",
+    "blur_kernel_size": 3,
+    "min_light_area": 8,
     "max_light_area": None,
     "min_light_circularity": 0.2,
     "max_light_aspect_ratio": 3.0,
@@ -71,7 +42,7 @@ DEFAULT_LED_TRACKER_CONFIG = {
     "min_color_area": 10,
     "morph_kernel_size": 5,
     "match_radius": 25,
-    "max_match_distance": 80,
+    "max_match_distance": 80.0,
     "distance_weight": 0.5,
     "overlap_weight": 0.5,
     "color_score_weight": 1.0,
@@ -79,26 +50,38 @@ DEFAULT_LED_TRACKER_CONFIG = {
     "tracking_enabled": True,
     "tracking_max_distance_px": 80.0,
     "min_color_score": 0.08,
-    "min_total_assignment_score": 0.8,
+    "min_total_assignment_score": 0.35,
     "min_assignment_margin": 0.02,
     "moving_average_n": 10,
+    "reject_tilt_jumps": False,
+    "max_tilt_jump_deg": 6.0,
+    "reject_position_jumps": True,
+    "max_camera_x_jump": 8.0,
+    "max_camera_z_jump": 8.0,
+    "max_camera_distance_jump": 10.0,
+    "max_consecutive_rejects": 8,
+    "print_rejected_frames": True,
+    "min_led_pair_distance_px": 3.0,
     "camera_window_name": "Camara original con deteccion",
-    "plot_window_name": "Graficos coordenadas camara y tilt",
+    "plot_window_name": "Graficos coordenadas camara y angulo",
     "show_windows": True,
     "plot_width": 900,
+    "plot_height": 650,
     "plot_history_seconds": 10.0,
     "plot_margin_left": 65,
     "plot_margin_right": 25,
     "plot_margin_top": 35,
     "plot_margin_bottom": 40,
-    "plot_height": 650,
-    "camera_x_plot_min": 0.0,
-    "camera_x_plot_max": 60.0,
-    "camera_z_plot_min": -30.0,
-    "camera_z_plot_max": 30.0,
+    "camera_x_plot_min": -10.0,
+    "camera_x_plot_max": 0.0,
+    "camera_z_plot_min": -10.0,
+    "camera_z_plot_max": 0.0,
     "tilt_plot_min": -90.0,
     "tilt_plot_max": 90.0,
 }
+
+
+COLORS = ("red", "blue")
 
 
 def merged_led_tracker_config(config=None):
@@ -112,12 +95,6 @@ def _as_hsv_array(value):
     return np.array(value, dtype=np.uint8)
 
 
-def _as_float_matrix(value):
-    if value is None:
-        return None
-    return np.array(value, dtype=np.float32)
-
-
 def _optional_float(value):
     if value is None:
         return None
@@ -126,13 +103,6 @@ def _optional_float(value):
 
 def _angle_difference_deg(a, b):
     return (a - b + 180.0) % 360.0 - 180.0
-
-
-def _triangle_area_2d(a, b, c):
-    return abs(
-        (float(b[0]) - float(a[0])) * (float(c[1]) - float(a[1]))
-        - (float(c[0]) - float(a[0])) * (float(b[1]) - float(a[1]))
-    ) * 0.5
 
 
 def _append_capped_sample(samples, value, max_count):
@@ -172,8 +142,11 @@ def _trim_history(history, current_time, history_seconds):
 
 class LEDPoseTracker:
     """
-    Detecta los cuatro LEDs, estima distancia/tilt con solvePnP y genera las
-    dos vistas usadas por el control: camara con vectores y grafico temporal.
+    Detecta dos LEDs (rojo y azul) y estima posicion lateral 2D en cm.
+
+    La referencia de camara es la esquina inferior derecha. X positivo apunta a
+    la derecha de la imagen y Z positivo hacia abajo; por lo tanto, en el
+    cuadrante visible desde esa esquina, X y Z normalmente son negativos.
     """
 
     def __init__(self, config=None):
@@ -186,8 +159,6 @@ class LEDPoseTracker:
 
         self.cap = None
         self.last_accepted_pose = None
-        self.last_rvec = None
-        self.last_tvec = None
         self.last_centers = None
         self.last_assignment_info = {}
         self.last_pose_rejection_reason = None
@@ -211,40 +182,11 @@ class LEDPoseTracker:
         self.camera_gain = _optional_float(cfg.get("camera_gain"))
         self.camera_auto_wb = _optional_float(cfg.get("camera_auto_wb"))
         self.camera_wb_temperature = _optional_float(cfg.get("camera_wb_temperature"))
-        self.red_green_distance = float(cfg["red_green_distance"])
+        self.flip_camera_x = bool(cfg["flip_camera_x"])
+        self.tip_color = str(cfg["tip_color"])
+
         self.red_blue_distance = float(cfg["red_blue_distance"])
-        self.green_blue_distance = float(cfg["green_blue_distance"])
-        self.yellow_red_distance = float(cfg["yellow_red_distance"])
-        self.yellow_blue_distance = float(cfg["yellow_blue_distance"])
-        self.yellow_plane_offset_z = float(cfg["yellow_plane_offset_z"])
-
-        self.camera_matrix = _as_float_matrix(cfg.get("camera_matrix"))
-        dist_coeffs = cfg.get("dist_coeffs")
-        self.dist_coeffs = (
-            np.array(dist_coeffs, dtype=np.float32).reshape(-1, 1)
-            if dist_coeffs is not None
-            else np.zeros((5, 1), dtype=np.float32)
-        )
-        self.approx_focal_length_factor = float(cfg["approx_focal_length_factor"])
-
-        self.use_previous_pose_guess = bool(cfg["use_previous_pose_guess"])
-        self.reject_tilt_jumps = bool(cfg["reject_tilt_jumps"])
-        self.max_tilt_jump_deg = float(cfg["max_tilt_jump_deg"])
-        self.reject_position_jumps = bool(cfg["reject_position_jumps"])
-        self.max_camera_x_jump = float(cfg["max_camera_x_jump"])
-        self.max_camera_z_jump = float(cfg["max_camera_z_jump"])
-        self.max_camera_distance_jump = float(cfg["max_camera_distance_jump"])
-        self.max_consecutive_rejects = int(cfg["max_consecutive_rejects"])
-        self.print_rejected_frames = bool(cfg["print_rejected_frames"])
-        self.reject_reprojection_errors = bool(cfg["reject_reprojection_errors"])
-        self.max_mean_reprojection_error_px = float(cfg["max_mean_reprojection_error_px"])
-        self.max_reprojection_error_px = float(cfg["max_reprojection_error_px"])
-        self.reject_bad_image_geometry = bool(cfg["reject_bad_image_geometry"])
-        self.min_led_pair_distance_px = float(cfg["min_led_pair_distance_px"])
-        self.min_rgb_triangle_area_px2 = float(cfg["min_rgb_triangle_area_px2"])
-        self.min_yellow_triangle_area_px2 = float(cfg["min_yellow_triangle_area_px2"])
-        self.min_image_geometry_scale = float(cfg["min_image_geometry_scale"])
-        self.max_image_geometry_scale = float(cfg["max_image_geometry_scale"])
+        self.flute_safety_radius_cm = float(cfg["flute_safety_radius_cm"])
 
         self.light_low_hsv = _as_hsv_array(cfg["light_low_hsv"])
         self.light_high_hsv = _as_hsv_array(cfg["light_high_hsv"])
@@ -252,13 +194,11 @@ class LEDPoseTracker:
         self.red_high_hsv = _as_hsv_array(cfg["red_high_hsv"])
         self.red_low_hsv_2 = _as_hsv_array(cfg["red_low_hsv_2"])
         self.red_high_hsv_2 = _as_hsv_array(cfg["red_high_hsv_2"])
-        self.green_low_hsv = _as_hsv_array(cfg["green_low_hsv"])
-        self.green_high_hsv = _as_hsv_array(cfg["green_high_hsv"])
         self.blue_low_hsv = _as_hsv_array(cfg["blue_low_hsv"])
         self.blue_high_hsv = _as_hsv_array(cfg["blue_high_hsv"])
-        self.yellow_low_hsv = _as_hsv_array(cfg["yellow_low_hsv"])
-        self.yellow_high_hsv = _as_hsv_array(cfg["yellow_high_hsv"])
 
+        self.candidate_mask_mode = str(cfg["candidate_mask_mode"])
+        self.blur_kernel_size = int(cfg["blur_kernel_size"])
         self.min_light_area = float(cfg["min_light_area"])
         self.max_light_area = _optional_float(cfg.get("max_light_area"))
         self.min_light_circularity = float(cfg["min_light_circularity"])
@@ -279,6 +219,16 @@ class LEDPoseTracker:
         self.min_assignment_margin = float(cfg["min_assignment_margin"])
         self.moving_average_n = int(cfg["moving_average_n"])
 
+        self.reject_tilt_jumps = bool(cfg["reject_tilt_jumps"])
+        self.max_tilt_jump_deg = float(cfg["max_tilt_jump_deg"])
+        self.reject_position_jumps = bool(cfg["reject_position_jumps"])
+        self.max_camera_x_jump = float(cfg["max_camera_x_jump"])
+        self.max_camera_z_jump = float(cfg["max_camera_z_jump"])
+        self.max_camera_distance_jump = float(cfg["max_camera_distance_jump"])
+        self.max_consecutive_rejects = int(cfg["max_consecutive_rejects"])
+        self.print_rejected_frames = bool(cfg["print_rejected_frames"])
+        self.min_led_pair_distance_px = float(cfg["min_led_pair_distance_px"])
+
         self.camera_window_name = str(cfg["camera_window_name"])
         self.plot_window_name = str(cfg["plot_window_name"])
         self.show_windows = bool(cfg["show_windows"])
@@ -289,100 +239,46 @@ class LEDPoseTracker:
         self.plot_margin_right = int(cfg["plot_margin_right"])
         self.plot_margin_top = int(cfg["plot_margin_top"])
         self.plot_margin_bottom = int(cfg["plot_margin_bottom"])
-        self.camera_x_plot_min = cfg.get("camera_x_plot_min", cfg.get("distance_plot_min", 0.0))
-        self.camera_x_plot_max = cfg.get("camera_x_plot_max", cfg.get("distance_plot_max", 60.0))
-        self.camera_z_plot_min = cfg.get("camera_z_plot_min", -30.0)
-        self.camera_z_plot_max = cfg.get("camera_z_plot_max", 30.0)
-        self.tilt_plot_min = cfg["tilt_plot_min"]
-        self.tilt_plot_max = cfg["tilt_plot_max"]
+        self.camera_x_plot_min = cfg.get("camera_x_plot_min")
+        self.camera_x_plot_max = cfg.get("camera_x_plot_max")
+        self.camera_z_plot_min = cfg.get("camera_z_plot_min")
+        self.camera_z_plot_max = cfg.get("camera_z_plot_max")
+        self.tilt_plot_min = cfg.get("tilt_plot_min")
+        self.tilt_plot_max = cfg.get("tilt_plot_max")
 
     def _validate_config(self):
-        distances = {
-            "red_green_distance": self.red_green_distance,
-            "red_blue_distance": self.red_blue_distance,
-            "green_blue_distance": self.green_blue_distance,
-            "yellow_red_distance": self.yellow_red_distance,
-            "yellow_blue_distance": self.yellow_blue_distance,
-        }
-        for name, value in distances.items():
-            if value <= 0:
-                raise ValueError(f"{name} debe ser mayor que cero.")
-
-        d_rg = self.red_green_distance
-        d_rb = self.red_blue_distance
-        d_gb = self.green_blue_distance
-        if d_rg + d_rb <= d_gb or d_rg + d_gb <= d_rb or d_rb + d_gb <= d_rg:
-            raise ValueError("Las distancias RGB no forman un triangulo valido.")
-
-        yellow_x = (
-            self.yellow_red_distance ** 2
-            - self.yellow_blue_distance ** 2
-            + self.red_blue_distance ** 2
-        ) / (2.0 * self.red_blue_distance)
-        yellow_y_squared = (
-            self.yellow_red_distance ** 2
-            - yellow_x ** 2
-            - self.yellow_plane_offset_z ** 2
-        )
-        if yellow_y_squared < -1e-6:
-            raise ValueError("La geometria del LED amarillo no es posible.")
-
-        if self.moving_average_n < 1:
-            raise ValueError("moving_average_n debe ser mayor o igual a 1.")
-
-        if self.max_light_candidates < 4:
-            raise ValueError("max_light_candidates debe ser mayor o igual a 4.")
-
+        if self.red_blue_distance <= 0:
+            raise ValueError("red_blue_distance debe ser mayor que cero.")
+        if self.flute_safety_radius_cm < 0:
+            raise ValueError("flute_safety_radius_cm debe ser mayor o igual a cero.")
+        if self.tip_color not in COLORS:
+            raise ValueError("tip_color debe ser red o blue.")
+        if self.blur_kernel_size < 1 or self.blur_kernel_size % 2 == 0:
+            raise ValueError("blur_kernel_size debe ser impar y mayor o igual a 1.")
+        if self.candidate_mask_mode not in {"light", "color", "light_or_color"}:
+            raise ValueError("candidate_mask_mode debe ser light, color o light_or_color.")
+        if self.morph_kernel_size < 1:
+            raise ValueError("morph_kernel_size debe ser mayor o igual a 1.")
+        if self.max_light_candidates < 2:
+            raise ValueError("max_light_candidates debe ser mayor o igual a 2.")
         if self.min_light_area <= 0:
             raise ValueError("min_light_area debe ser mayor que cero.")
-
         if self.max_light_area is not None and self.max_light_area <= self.min_light_area:
             raise ValueError("max_light_area debe ser mayor que min_light_area.")
-
         if self.min_light_circularity < 0.0 or self.min_light_circularity > 1.0:
             raise ValueError("min_light_circularity debe estar entre 0 y 1.")
-
         if self.max_light_aspect_ratio < 1.0:
             raise ValueError("max_light_aspect_ratio debe ser mayor o igual a 1.")
-
         if self.min_color_score < 0.0 or self.min_color_score > 1.0:
             raise ValueError("min_color_score debe estar entre 0 y 1.")
-
         if self.max_match_distance <= 0:
             raise ValueError("max_match_distance debe ser mayor que cero.")
-
         if self.tracking_max_distance_px <= 0:
             raise ValueError("tracking_max_distance_px debe ser mayor que cero.")
-
-        if self.min_image_geometry_scale <= 0 or self.max_image_geometry_scale <= self.min_image_geometry_scale:
-            raise ValueError("Los limites de escala de geometria de imagen son invalidos.")
-
-        if self.max_mean_reprojection_error_px <= 0 or self.max_reprojection_error_px <= 0:
-            raise ValueError("Los limites de error de reproyeccion deben ser mayores que cero.")
-
-        if self.max_camera_x_jump <= 0 or self.max_camera_z_jump <= 0 or self.max_camera_distance_jump <= 0:
-            raise ValueError("Los limites de salto de posicion deben ser mayores que cero.")
-
-        if (
-            self.camera_x_plot_min is not None
-            and self.camera_x_plot_max is not None
-            and self.camera_x_plot_max <= self.camera_x_plot_min
-        ):
-            raise ValueError("camera_x_plot_max debe ser mayor que camera_x_plot_min.")
-
-        if (
-            self.camera_z_plot_min is not None
-            and self.camera_z_plot_max is not None
-            and self.camera_z_plot_max <= self.camera_z_plot_min
-        ):
-            raise ValueError("camera_z_plot_max debe ser mayor que camera_z_plot_min.")
-
-        if (
-            self.tilt_plot_min is not None
-            and self.tilt_plot_max is not None
-            and self.tilt_plot_max <= self.tilt_plot_min
-        ):
-            raise ValueError("tilt_plot_max debe ser mayor que tilt_plot_min.")
+        if self.moving_average_n < 1:
+            raise ValueError("moving_average_n debe ser mayor o igual a 1.")
+        if self.min_led_pair_distance_px <= 0:
+            raise ValueError("min_led_pair_distance_px debe ser mayor que cero.")
 
     def open(self):
         self.cap = cv2.VideoCapture(self.camera_index)
@@ -436,6 +332,16 @@ class LEDPoseTracker:
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         return mask
+
+    def _build_candidate_mask(self, light_mask, red_mask, blue_mask):
+        color_mask = cv2.bitwise_or(red_mask, blue_mask)
+
+        if self.candidate_mask_mode == "light":
+            return light_mask
+        if self.candidate_mask_mode == "color":
+            return color_mask
+
+        return cv2.bitwise_or(light_mask, color_mask)
 
     def _find_light_candidates(self, light_mask):
         contours, _ = cv2.findContours(
@@ -558,7 +464,7 @@ class LEDPoseTracker:
             "accepted": False,
             "reason": reason,
         }
-        return {"red": None, "green": None, "blue": None, "yellow": None}
+        return {"red": None, "blue": None}
 
     def _get_tracking_score(self, color, candidate):
         if not self.tracking_enabled or not self.last_centers:
@@ -588,20 +494,17 @@ class LEDPoseTracker:
             + self.tracking_score_weight * tracking_info["score"]
         ) / weight_sum
 
-    def _assign_colors_to_candidates(self, candidates, red_mask, green_mask, blue_mask, yellow_mask):
-        if len(candidates) < 4:
+    def _assign_colors_to_candidates(self, candidates, red_mask, blue_mask):
+        if len(candidates) < 2:
             return self._empty_centers("not_enough_candidates")
 
         color_mask_info = {
             "red": self._prepare_color_mask_info(red_mask),
-            "green": self._prepare_color_mask_info(green_mask),
             "blue": self._prepare_color_mask_info(blue_mask),
-            "yellow": self._prepare_color_mask_info(yellow_mask),
         }
-        colors = ["red", "green", "blue", "yellow"]
         score_table = {}
 
-        for color in colors:
+        for color in COLORS:
             score_table[color] = []
             for candidate in candidates:
                 score_table[color].append(
@@ -612,10 +515,11 @@ class LEDPoseTracker:
         second_best_total_score = -1.0
         best_assignment = None
         best_assignment_details = None
-        for permutation in itertools.permutations(range(len(candidates)), 4):
+
+        for permutation in itertools.permutations(range(len(candidates)), len(COLORS)):
             total_score = 0.0
             assignment_details = {}
-            for color, candidate_index in zip(colors, permutation):
+            for color, candidate_index in zip(COLORS, permutation):
                 color_score = score_table[color][candidate_index]["combined_score"]
                 tracking_info = self._get_tracking_score(color, candidates[candidate_index])
                 combined_score = self._combine_color_and_tracking_score(color_score, tracking_info)
@@ -630,7 +534,7 @@ class LEDPoseTracker:
             if total_score > best_total_score:
                 second_best_total_score = best_total_score
                 best_total_score = total_score
-                best_assignment = dict(zip(colors, permutation))
+                best_assignment = dict(zip(COLORS, permutation))
                 best_assignment_details = assignment_details
             elif total_score > second_best_total_score:
                 second_best_total_score = total_score
@@ -640,7 +544,7 @@ class LEDPoseTracker:
 
         color_scores = [
             best_assignment_details[color]["color_score"]
-            for color in colors
+            for color in COLORS
         ]
         min_color_score = min(color_scores)
         assignment_margin = (
@@ -668,279 +572,60 @@ class LEDPoseTracker:
         }
 
         return {
-            "red": candidates[best_assignment["red"]]["center"],
-            "green": candidates[best_assignment["green"]]["center"],
-            "blue": candidates[best_assignment["blue"]]["center"],
-            "yellow": candidates[best_assignment["yellow"]]["center"],
+            color: candidates[best_assignment[color]]["center"]
+            for color in COLORS
         }
 
-    def _validate_ratio_scale(self, observed_ratio, expected_ratio):
-        if observed_ratio <= 0.0 or expected_ratio <= 0.0:
-            return False
-
-        scale = observed_ratio / expected_ratio
-        return self.min_image_geometry_scale <= scale <= self.max_image_geometry_scale
-
-    def _validate_image_geometry(self, centers):
-        if not self.reject_bad_image_geometry:
-            return True, None
-
-        required_colors = ("red", "green", "blue", "yellow")
-        if any(centers[color] is None for color in required_colors):
-            return False, "missing_center"
-
-        pair_distances = {}
-        for color_a, color_b in itertools.combinations(required_colors, 2):
-            distance_px = float(np.linalg.norm(centers[color_a] - centers[color_b]))
-            pair_distances[(color_a, color_b)] = distance_px
-            if distance_px < self.min_led_pair_distance_px:
-                return False, f"pair_too_close_{color_a}_{color_b}"
-
-        red = centers["red"]
-        green = centers["green"]
-        blue = centers["blue"]
-        yellow = centers["yellow"]
-        rgb_area = _triangle_area_2d(red, green, blue)
-        if rgb_area < self.min_rgb_triangle_area_px2:
-            return False, "rgb_triangle_too_small"
-
-        yellow_red_blue_area = _triangle_area_2d(yellow, red, blue)
-        yellow_red_green_area = _triangle_area_2d(yellow, red, green)
-        yellow_blue_green_area = _triangle_area_2d(yellow, blue, green)
-        if max(yellow_red_blue_area, yellow_red_green_area, yellow_blue_green_area) < self.min_yellow_triangle_area_px2:
-            return False, "yellow_geometry_too_flat"
-
-        image_rb = pair_distances[("red", "blue")]
-        if image_rb <= 0.0:
-            return False, "red_blue_distance_zero"
-
-        if not self._validate_ratio_scale(
-            pair_distances[("red", "green")] / image_rb,
-            self.red_green_distance / self.red_blue_distance,
-        ):
-            return False, "red_green_ratio_out_of_range"
-
-        if not self._validate_ratio_scale(
-            pair_distances[("green", "blue")] / image_rb,
-            self.green_blue_distance / self.red_blue_distance,
-        ):
-            return False, "green_blue_ratio_out_of_range"
-
-        image_yb = pair_distances[("blue", "yellow")]
-        if image_yb <= 0.0:
-            return False, "yellow_blue_distance_zero"
-
-        if not self._validate_ratio_scale(
-            pair_distances[("red", "yellow")] / image_yb,
-            self.yellow_red_distance / self.yellow_blue_distance,
-        ):
-            return False, "yellow_ratio_out_of_range"
-
-        return True, None
-
-    def _get_camera_matrix(self, frame):
-        if self.camera_matrix is not None:
-            return self.camera_matrix
-
-        height, width = frame.shape[:2]
-        fx = self.approx_focal_length_factor * width
-        fy = self.approx_focal_length_factor * width
-        cx = width / 2.0
-        cy = height / 2.0
-        return np.array([
-            [fx, 0.0, cx],
-            [0.0, fy, cy],
-            [0.0, 0.0, 1.0],
-        ], dtype=np.float32)
-
-    def _get_object_points(self):
-        d_rg = self.red_green_distance
-        d_rb = self.red_blue_distance
-        d_gb = self.green_blue_distance
-        d_yr = self.yellow_red_distance
-        d_yb = self.yellow_blue_distance
-        z_y = self.yellow_plane_offset_z
-
-        red = np.array([0.0, 0.0, 0.0], dtype=np.float32)
-        blue = np.array([d_rb, 0.0, 0.0], dtype=np.float32)
-
-        green_x = (d_rg ** 2 - d_gb ** 2 + d_rb ** 2) / (2.0 * d_rb)
-        green_y_squared = d_rg ** 2 - green_x ** 2
-        green_y = math.sqrt(max(green_y_squared, 0.0))
-        green = np.array([green_x, green_y, 0.0], dtype=np.float32)
-
-        yellow_x = (d_yr ** 2 - d_yb ** 2 + d_rb ** 2) / (2.0 * d_rb)
-        yellow_y_squared = d_yr ** 2 - yellow_x ** 2 - z_y ** 2
-        yellow_y = -math.sqrt(max(yellow_y_squared, 0.0))
-        yellow = np.array([yellow_x, yellow_y, z_y], dtype=np.float32)
-
-        rgb_centroid = (red + green + blue) / 3.0
-        return np.array([
-            red - rgb_centroid,
-            green - rgb_centroid,
-            blue - rgb_centroid,
-            yellow - rgb_centroid,
-        ], dtype=np.float32)
-
-    def _solve_pose_with_optional_guess(self, object_points, image_points, camera_matrix):
-        if self.use_previous_pose_guess and self.last_rvec is not None and self.last_tvec is not None:
-            try:
-                success, rvec, tvec = cv2.solvePnP(
-                    object_points,
-                    image_points,
-                    camera_matrix,
-                    self.dist_coeffs,
-                    rvec=self.last_rvec.copy(),
-                    tvec=self.last_tvec.copy(),
-                    useExtrinsicGuess=True,
-                    flags=cv2.SOLVEPNP_ITERATIVE,
-                )
-
-                if success:
-                    return {
-                        "success": True,
-                        "rvec": rvec,
-                        "tvec": tvec,
-                        "method": "ITERATIVE_WITH_PREVIOUS_GUESS",
-                    }
-            except cv2.error:
-                pass
-
-        success, rvec, tvec = cv2.solvePnP(
-            object_points,
-            image_points,
-            camera_matrix,
-            self.dist_coeffs,
-            flags=cv2.SOLVEPNP_EPNP,
-        )
-        if not success:
-            return {"success": False, "rvec": None, "tvec": None, "method": "EPNP_FAILED"}
-
-        try:
-            refined_success, refined_rvec, refined_tvec = cv2.solvePnP(
-                object_points,
-                image_points,
-                camera_matrix,
-                self.dist_coeffs,
-                rvec=rvec.copy(),
-                tvec=tvec.copy(),
-                useExtrinsicGuess=True,
-                flags=cv2.SOLVEPNP_ITERATIVE,
-            )
-
-            if refined_success:
-                return {
-                    "success": True,
-                    "rvec": refined_rvec,
-                    "tvec": refined_tvec,
-                    "method": "EPNP_THEN_ITERATIVE",
-                }
-        except cv2.error:
-            pass
-
-        return {"success": True, "rvec": rvec, "tvec": tvec, "method": "EPNP_ONLY"}
-
-    def _calculate_reprojection_error(self, object_points, image_points, rvec, tvec, camera_matrix):
-        projected_points, _ = cv2.projectPoints(
-            object_points,
-            rvec,
-            tvec,
-            camera_matrix,
-            self.dist_coeffs,
-        )
-        projected_points = projected_points.reshape(-1, 2)
-        errors = np.linalg.norm(projected_points - image_points.reshape(-1, 2), axis=1)
-        return {
-            "mean_px": float(np.mean(errors)),
-            "max_px": float(np.max(errors)),
-            "errors_px": errors,
-            "projected_points": projected_points,
-        }
-
-    def _is_reprojection_accepted(self, reprojection):
-        if not self.reject_reprojection_errors:
-            return True
-
-        return (
-            reprojection["mean_px"] <= self.max_mean_reprojection_error_px
-            and reprojection["max_px"] <= self.max_reprojection_error_px
-        )
-
-    def _pose_to_camera_coordinates_and_tilt(self, rvec, tvec):
-        rotation_matrix, _ = cv2.Rodrigues(rvec)
-        normal_local = np.array([[0.0], [0.0], [1.0]], dtype=np.float32)
-        normal_camera = (rotation_matrix @ normal_local).flatten()
-
-        if normal_camera[2] < 0:
-            normal_camera = -normal_camera
-
-        camera_x_depth = float(tvec[2][0])
-        camera_z_vertical = -float(tvec[1][0])
-        camera_distance_xz = math.hypot(camera_x_depth, camera_z_vertical)
-        tilt_deg = math.degrees(math.atan2(normal_camera[1], normal_camera[2]))
-        return camera_x_depth, camera_z_vertical, camera_distance_xz, tilt_deg, normal_camera
-
-    def _estimate_distance_and_tilt(self, centers, frame):
-        if any(centers[color] is None for color in ("red", "green", "blue", "yellow")):
+    def _estimate_2d_pose(self, centers, frame):
+        red_center = centers["red"]
+        blue_center = centers["blue"]
+        if red_center is None or blue_center is None:
             return None
 
-        geometry_ok, geometry_reason = self._validate_image_geometry(centers)
-        if not geometry_ok:
-            self.last_pose_rejection_reason = geometry_reason
+        frame_height, frame_width = frame.shape[:2]
+        reference_corner = np.array([frame_width - 1, frame_height - 1], dtype=np.float32)
+        tip_center = centers[self.tip_color]
+        tail_color = "blue" if self.tip_color == "red" else "red"
+        tail_center = centers[tail_color]
+        led_vector_px = tail_center - tip_center
+        led_distance_px = float(np.linalg.norm(led_vector_px))
+        if led_distance_px < self.min_led_pair_distance_px:
+            self.last_pose_rejection_reason = "led_pair_too_close"
             if self.print_rejected_frames:
-                print(f"rejected_image_geometry={geometry_reason}")
+                print(f"rejected_image_geometry={self.last_pose_rejection_reason}")
             return None
 
-        object_points = self._get_object_points()
-        image_points = np.array([
-            centers["red"],
-            centers["green"],
-            centers["blue"],
-            centers["yellow"],
-        ], dtype=np.float32)
-        camera_matrix = self._get_camera_matrix(frame)
-        pose_solution = self._solve_pose_with_optional_guess(
-            object_points,
-            image_points,
-            camera_matrix,
-        )
+        cm_per_px = self.red_blue_distance / led_distance_px
+        tip_from_corner_px = tip_center - reference_corner
+        camera_x_cm = float(tip_from_corner_px[0] * cm_per_px)
+        camera_z_cm = float(tip_from_corner_px[1] * cm_per_px)
+        camera_distance_cm = math.hypot(camera_x_cm, camera_z_cm)
+        angle_deg = math.degrees(math.atan2(float(led_vector_px[1]), float(led_vector_px[0])))
+        angle_deg = _angle_difference_deg(angle_deg, 0.0)
+        if angle_deg > 90.0:
+            angle_deg -= 180.0
+        elif angle_deg <= -90.0:
+            angle_deg += 180.0
 
-        if not pose_solution["success"]:
-            return None
-
-        reprojection = self._calculate_reprojection_error(
-            object_points,
-            image_points,
-            pose_solution["rvec"],
-            pose_solution["tvec"],
-            camera_matrix,
-        )
-        if not self._is_reprojection_accepted(reprojection):
-            self.last_pose_rejection_reason = (
-                f"reprojection mean={reprojection['mean_px']:.3f}px "
-                f"max={reprojection['max_px']:.3f}px"
-            )
-            if self.print_rejected_frames:
-                print(f"rejected_{self.last_pose_rejection_reason}")
-            return None
-
-        camera_x_depth, camera_z_vertical, camera_distance_xz, tilt_deg, normal_camera = self._pose_to_camera_coordinates_and_tilt(
-            pose_solution["rvec"],
-            pose_solution["tvec"],
-        )
         self.last_pose_rejection_reason = None
         return {
-            "camera_x_depth": camera_x_depth,
-            "camera_z_vertical": camera_z_vertical,
-            "camera_distance_xz": camera_distance_xz,
-            "distance_z": camera_x_depth,
-            "tilt_deg": tilt_deg,
-            "normal_camera": normal_camera,
-            "rvec": pose_solution["rvec"],
-            "tvec": pose_solution["tvec"],
-            "method": pose_solution["method"],
-            "reprojection_mean_px": reprojection["mean_px"],
-            "reprojection_max_px": reprojection["max_px"],
+            "camera_x_depth": camera_x_cm,
+            "camera_z_vertical": camera_z_cm,
+            "camera_distance_xz": camera_distance_cm,
+            "distance_z": camera_x_cm,
+            "tilt_deg": angle_deg,
+            "raw_camera_x_depth": camera_x_cm,
+            "raw_camera_z_vertical": camera_z_cm,
+            "raw_camera_distance_xz": camera_distance_cm,
+            "raw_distance_z": camera_x_cm,
+            "raw_tilt_deg": angle_deg,
+            "cm_per_px": cm_per_px,
+            "led_distance_px": led_distance_px,
+            "reference_corner_px": reference_corner,
+            "red_center_px": red_center.copy(),
+            "blue_center_px": blue_center.copy(),
+            "tip_color": self.tip_color,
+            "tip_center_px": tip_center.copy(),
         }
 
     def _apply_pose_jump_rejection(self, new_pose):
@@ -957,18 +642,18 @@ class LEDPoseTracker:
         old_tilt = self.last_accepted_pose["tilt_deg"]
         tilt_jump = abs(_angle_difference_deg(new_tilt, old_tilt))
         if self.reject_tilt_jumps and tilt_jump > self.max_tilt_jump_deg:
-            jump_reasons.append(f"tilt={tilt_jump:.3f}deg")
+            jump_reasons.append(f"angle={tilt_jump:.3f}deg")
 
         camera_x_jump = abs(new_pose["camera_x_depth"] - self.last_accepted_pose["camera_x_depth"])
         camera_z_jump = abs(new_pose["camera_z_vertical"] - self.last_accepted_pose["camera_z_vertical"])
         camera_distance_jump = abs(new_pose["camera_distance_xz"] - self.last_accepted_pose["camera_distance_xz"])
         if self.reject_position_jumps:
             if camera_x_jump > self.max_camera_x_jump:
-                jump_reasons.append(f"camera_x={camera_x_jump:.3f}")
+                jump_reasons.append(f"camera_x={camera_x_jump:.3f}cm")
             if camera_z_jump > self.max_camera_z_jump:
-                jump_reasons.append(f"camera_z={camera_z_jump:.3f}")
+                jump_reasons.append(f"camera_z={camera_z_jump:.3f}cm")
             if camera_distance_jump > self.max_camera_distance_jump:
-                jump_reasons.append(f"camera_distance={camera_distance_jump:.3f}")
+                jump_reasons.append(f"camera_distance={camera_distance_jump:.3f}cm")
 
         if not jump_reasons:
             self.consecutive_rejects = 0
@@ -978,7 +663,7 @@ class LEDPoseTracker:
         if self.print_rejected_frames:
             print(
                 f"rejected_pose_jump={','.join(jump_reasons)}, "
-                f"new_tilt={new_tilt:.3f}, old_tilt={old_tilt:.3f}, "
+                f"new_angle={new_tilt:.3f}, old_angle={old_tilt:.3f}, "
                 f"rejects={self.consecutive_rejects}"
             )
 
@@ -987,30 +672,6 @@ class LEDPoseTracker:
             return new_pose, True
 
         return self.last_accepted_pose, False
-
-    def _draw_marker(self, frame, center, color_bgr, label):
-        if center is None:
-            return
-
-        x, y = center.astype(int)
-        cv2.circle(frame, (x, y), 9, color_bgr, 2)
-        cv2.circle(frame, (x, y), 3, color_bgr, -1)
-        cv2.putText(
-            frame,
-            label,
-            (x + 10, y - 10),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            color_bgr,
-            2,
-            cv2.LINE_AA,
-        )
-
-    def _draw_line(self, frame, p1, p2, color_bgr=(255, 255, 255)):
-        if p1 is None or p2 is None:
-            return
-
-        cv2.line(frame, tuple(p1.astype(int)), tuple(p2.astype(int)), color_bgr, 2)
 
     def _get_averaged_measurement(self, pose_data, now, fresh):
         if pose_data is None and not self.camera_x_average_samples:
@@ -1049,9 +710,10 @@ class LEDPoseTracker:
             "camera_z_vertical": averaged_camera_z_vertical,
             "camera_distance_xz": averaged_camera_distance_xz,
             "tilt_deg": averaged_tilt_deg,
-            "reprojection_mean_px": None,
-            "reprojection_max_px": None,
+            "cm_per_px": None,
+            "led_distance_px": None,
         }
+
         measurement = {
             "camera_x_depth": averaged_camera_x_depth,
             "camera_z_vertical": averaged_camera_z_vertical,
@@ -1063,8 +725,15 @@ class LEDPoseTracker:
             "raw_camera_distance_xz": float(raw_pose["camera_distance_xz"]),
             "raw_distance_z": float(raw_pose["camera_x_depth"]),
             "raw_tilt_deg": float(raw_pose["tilt_deg"]),
-            "reprojection_mean_px": raw_pose.get("reprojection_mean_px"),
-            "reprojection_max_px": raw_pose.get("reprojection_max_px"),
+            "cm_per_px": raw_pose.get("cm_per_px"),
+            "led_distance_px": raw_pose.get("led_distance_px"),
+            "reference_corner_px": raw_pose.get("reference_corner_px"),
+            "red_center_px": raw_pose.get("red_center_px"),
+            "blue_center_px": raw_pose.get("blue_center_px"),
+            "tip_color": raw_pose.get("tip_color", self.tip_color),
+            "tip_center_px": raw_pose.get("tip_center_px"),
+            "reprojection_mean_px": None,
+            "reprojection_max_px": None,
             "timestamp": now,
             "fresh": bool(fresh),
         }
@@ -1202,7 +871,7 @@ class LEDPoseTracker:
 
         cv2.putText(
             plot_image,
-            f"Coordenadas camara y tilt vs tiempo | promedio N={self.moving_average_n}",
+            f"Coordenadas camara 2D y angulo vs tiempo | promedio N={self.moving_average_n}",
             (20, 25),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.75,
@@ -1230,8 +899,8 @@ class LEDPoseTracker:
             plot_image,
             self.camera_x_history,
             current_time,
-            "Camara X profundidad",
-            "unidad",
+            "Camara X desde esquina",
+            "cm",
             self.camera_x_plot_min,
             self.camera_x_plot_max,
             camera_x_top,
@@ -1242,8 +911,8 @@ class LEDPoseTracker:
             plot_image,
             self.camera_z_history,
             current_time,
-            "Camara Z vertical",
-            "unidad",
+            "Camara Z desde esquina",
+            "cm",
             self.camera_z_plot_min,
             self.camera_z_plot_max,
             camera_z_top,
@@ -1254,7 +923,7 @@ class LEDPoseTracker:
             plot_image,
             self.tilt_history,
             current_time,
-            "Tilt",
+            "Angulo LEDs",
             "deg",
             self.tilt_plot_min,
             self.tilt_plot_max,
@@ -1273,11 +942,17 @@ class LEDPoseTracker:
         if not ret:
             return None, None, None, now, "camera_read_failed"
 
-        blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+        if self.flip_camera_x:
+            frame = cv2.flip(frame, 1)
+
+        blurred = cv2.GaussianBlur(
+            frame,
+            (self.blur_kernel_size, self.blur_kernel_size),
+            0,
+        )
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
         light_mask = self._create_mask(hsv, self.light_low_hsv, self.light_high_hsv)
-        candidates = self._find_light_candidates(light_mask)
         red_mask = self._create_mask(
             hsv,
             self.red_low_hsv,
@@ -1285,27 +960,19 @@ class LEDPoseTracker:
             self.red_low_hsv_2,
             self.red_high_hsv_2,
         )
-        green_mask = self._create_mask(hsv, self.green_low_hsv, self.green_high_hsv)
         blue_mask = self._create_mask(hsv, self.blue_low_hsv, self.blue_high_hsv)
-        yellow_mask = self._create_mask(hsv, self.yellow_low_hsv, self.yellow_high_hsv)
+        candidate_mask = self._build_candidate_mask(light_mask, red_mask, blue_mask)
 
-        centers = self._assign_colors_to_candidates(
-            candidates,
-            red_mask,
-            green_mask,
-            blue_mask,
-            yellow_mask,
-        )
-        new_pose = self._estimate_distance_and_tilt(centers, frame)
+        candidates = self._find_light_candidates(candidate_mask)
+        centers = self._assign_colors_to_candidates(candidates, red_mask, blue_mask)
+        new_pose = self._estimate_2d_pose(centers, frame)
         accepted_pose, was_accepted = self._apply_pose_jump_rejection(new_pose)
 
         if was_accepted and accepted_pose is not None:
             self.last_accepted_pose = accepted_pose
-            self.last_rvec = accepted_pose["rvec"]
-            self.last_tvec = accepted_pose["tvec"]
             self.last_centers = {
                 color: centers[color].copy()
-                for color in ("red", "green", "blue", "yellow")
+                for color in COLORS
                 if centers[color] is not None
             }
 
@@ -1319,59 +986,171 @@ class LEDPoseTracker:
         _trim_history(self.camera_z_history, now, self.plot_history_seconds)
         _trim_history(self.tilt_history, now, self.plot_history_seconds)
 
-        display = self._create_detection_image(frame, centers, measurement)
+        display = self._create_detection_image(frame, candidates, centers, measurement)
         plot_image = self._create_realtime_plot_image(now)
         return measurement, display, plot_image, now, None
 
-    def _create_detection_image(self, frame, centers, measurement):
+    def _draw_marker(self, frame, center, color_bgr, label):
+        if center is None:
+            return
+
+        x, y = center.astype(int)
+        cv2.circle(frame, (x, y), 9, color_bgr, 2)
+        cv2.circle(frame, (x, y), 3, color_bgr, -1)
+        cv2.putText(
+            frame,
+            label,
+            (x + 10, y - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            color_bgr,
+            2,
+            cv2.LINE_AA,
+        )
+
+    def _draw_line(self, frame, p1, p2, color_bgr=(255, 255, 255)):
+        if p1 is None or p2 is None:
+            return
+
+        cv2.line(frame, tuple(p1.astype(int)), tuple(p2.astype(int)), color_bgr, 2)
+
+    def _draw_candidate_contours(self, frame, candidates):
+        for index, candidate in enumerate(candidates, start=1):
+            cv2.drawContours(frame, [candidate["contour"]], -1, (120, 120, 120), 1)
+            x, y = candidate["center"].astype(int)
+            cv2.putText(
+                frame,
+                str(index),
+                (x + 6, y + 18),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                (180, 180, 180),
+                1,
+                cv2.LINE_AA,
+            )
+
+    def _draw_reference_corner(self, frame, measurement):
+        height, width = frame.shape[:2]
+        origin = (width - 1, height - 1)
+        safety_color = (0, 220, 255)
+        cm_per_px = measurement.get("cm_per_px") if measurement is not None else None
+
+        if (
+            cm_per_px is not None
+            and math.isfinite(float(cm_per_px))
+            and float(cm_per_px) > 0.0
+            and self.flute_safety_radius_cm > 0.0
+        ):
+            safety_radius_px = int(round(self.flute_safety_radius_cm / float(cm_per_px)))
+            cv2.circle(frame, origin, safety_radius_px, safety_color, 2)
+            cv2.putText(
+                frame,
+                f"Radio seguridad {self.flute_safety_radius_cm:.1f} cm",
+                (max(0, origin[0] - 245), max(18, origin[1] - safety_radius_px - 10)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                safety_color,
+                2,
+                cv2.LINE_AA,
+            )
+
+        cv2.circle(frame, origin, 8, (255, 255, 255), 2)
+        cv2.line(frame, (origin[0] - 35, origin[1]), origin, (255, 255, 255), 1)
+        cv2.line(frame, (origin[0], origin[1] - 35), origin, (255, 255, 255), 1)
+        cv2.putText(
+            frame,
+            "0,0",
+            (max(0, origin[0] - 48), max(18, origin[1] - 12)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (255, 255, 255),
+            1,
+            cv2.LINE_AA,
+        )
+
+    def _format_center(self, center):
+        if center is None:
+            return "None"
+
+        x, y = center.astype(int)
+        return f"({x}, {y})"
+
+    def _create_detection_image(self, frame, candidates, centers, measurement):
         display = frame.copy()
         red_center = centers["red"]
-        green_center = centers["green"]
         blue_center = centers["blue"]
-        yellow_center = centers["yellow"]
 
-        self._draw_marker(display, red_center, (0, 0, 255), "Rojo")
-        self._draw_marker(display, green_center, (0, 255, 0), "Verde")
-        self._draw_marker(display, blue_center, (255, 0, 0), "Azul")
-        self._draw_marker(display, yellow_center, (0, 255, 255), "Amarillo")
-
-        self._draw_line(display, red_center, green_center)
-        self._draw_line(display, green_center, blue_center)
+        self._draw_candidate_contours(display, candidates)
+        self._draw_reference_corner(display, measurement)
         self._draw_line(display, blue_center, red_center)
-        self._draw_line(display, red_center, yellow_center, (0, 255, 255))
-        self._draw_line(display, blue_center, yellow_center, (0, 255, 255))
-        self._draw_line(display, green_center, yellow_center, (160, 160, 160))
+        red_label = "Rojo/punta" if self.tip_color == "red" else "Rojo"
+        blue_label = "Azul/punta" if self.tip_color == "blue" else "Azul"
+        self._draw_marker(display, red_center, (0, 0, 255), red_label)
+        self._draw_marker(display, blue_center, (255, 0, 0), blue_label)
 
-        if measurement is not None:
-            cv2.putText(
-                display,
-                f"Cam X depth avg: {measurement['camera_x_depth']:.2f}",
-                (20, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2,
-            )
-            cv2.putText(
-                display,
-                f"Cam Z vertical avg: {measurement['camera_z_vertical']:.2f}",
-                (20, 60),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2,
-            )
-            cv2.putText(
-                display,
-                f"Tilt avg: {measurement['tilt_deg']:.2f} deg",
-                (20, 90),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2,
-            )
-
+        self._draw_status(display, centers, measurement, len(candidates))
         return display
+
+    def _draw_status(self, frame, centers, measurement, candidate_count):
+        assignment_reason = self.last_assignment_info.get("reason", "unknown")
+        pose_reason = self.last_pose_rejection_reason
+        status = pose_reason or assignment_reason
+        status_ok = measurement is not None and measurement.get("fresh", False)
+        status_color = (60, 220, 60) if status_ok else (80, 80, 255)
+
+        if measurement is None:
+            x_label = "X cm: --"
+            z_label = "Z cm: --"
+            angle_label = "Alpha cam: --"
+            scale_label = "Escala: --"
+            safety_label = "Radio seguridad: --"
+        else:
+            x_label = f"X cm: {measurement['camera_x_depth']:.3f}"
+            z_label = f"Z cm: {measurement['camera_z_vertical']:.3f}"
+            angle_label = f"Alpha cam: {measurement['tilt_deg']:.3f} deg"
+            cm_per_px = measurement.get("cm_per_px")
+            scale_label = "Escala: --" if cm_per_px is None else f"Escala: {cm_per_px:.5f} cm/px"
+            safety_label = f"Radio seguridad: {self.flute_safety_radius_cm:.1f} cm"
+
+        rows = [
+            x_label,
+            z_label,
+            angle_label,
+            scale_label,
+            safety_label,
+            f"Rojo px: {self._format_center(centers['red'])}",
+            f"Azul px: {self._format_center(centers['blue'])}",
+            f"Punta: {self.tip_color}",
+            f"Candidatos: {candidate_count}",
+            f"Estado: {status}",
+        ]
+
+        x0, y0 = 18, 28
+        line_height = 24
+        box_width = 390
+        box_height = line_height * len(rows) + 18
+        overlay = frame.copy()
+        cv2.rectangle(
+            overlay,
+            (x0 - 10, y0 - 22),
+            (x0 + box_width, y0 - 22 + box_height),
+            (0, 0, 0),
+            -1,
+        )
+        cv2.addWeighted(overlay, 0.45, frame, 0.55, 0, frame)
+
+        for index, row in enumerate(rows):
+            color = status_color if row.startswith("Estado:") else (255, 255, 255)
+            cv2.putText(
+                frame,
+                row,
+                (x0, y0 + index * line_height),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                color,
+                2,
+                cv2.LINE_AA,
+            )
 
     def show(self, display, plot_image):
         if not self.show_windows or display is None or plot_image is None:
@@ -1390,9 +1169,9 @@ class LEDPoseTracker:
                     break
                 if measurement is not None:
                     print(
-                        f"camera_x={measurement['camera_x_depth']:.3f}, "
-                        f"camera_z={measurement['camera_z_vertical']:.3f}, "
-                        f"tilt={measurement['tilt_deg']:.3f}"
+                        f"camera_x_cm={measurement['camera_x_depth']:.3f}, "
+                        f"camera_z_cm={measurement['camera_z_vertical']:.3f}, "
+                        f"angle={measurement['tilt_deg']:.3f}"
                     )
                 key = self.show(display, plot_image)
                 if key == 27 or key == ord("q"):
