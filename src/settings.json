@@ -119,6 +119,13 @@
         "tilt_plot_max": 90.0,
         "show_windows": true
     },
+    "helmet_button": {
+        "enabled": true,
+        "auto_start": true,
+        "port": "COM6",
+        "baudrate": 115200,
+        "timeout_s": 0.2
+    },
     "network_delay": 20,
     "alpha_control": {
         "acceleration": 20,

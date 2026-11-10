@@ -12,6 +12,7 @@ from src.motor_route import *
 from src.route import *
 from src.cinematica import *
 
+import builtins
 import struct
 import time
 import numpy as np
@@ -47,6 +48,14 @@ SAFETY_WATCHDOG_TIMEOUT = SAFETY.get('watchdog_timeout_s', 5.0)
 SAFETY_MAX_PRESSURE = SAFETY.get('max_pressure_kpa', 200.0)
 SAFETY_FLOW_RATE_LIMIT = SAFETY.get('flow_rate_limit_per_step', 5.0)
 NETWORK_DELAY = DATA.get('network_delay', 20)
+
+
+def clamp_int(value, min_value, max_value, default=0):
+    try:
+        value = int(round(float(value)))
+    except (TypeError, ValueError, OverflowError):
+        value = default
+    return builtins.max(min_value, builtins.min(max_value, value))
 
 # Parametros de homing cargados desde settings.json
 HOMING = DATA.get('homing', {})
@@ -1549,7 +1558,7 @@ class VirtualFingers(threading.Thread):
                     break
         else:
             tongue = self.tongue_ref[-1][1] # si t_actual > t_final de la ruta referencia la nota se mantiene
-        return pos, apertura, tongue
+        return pos, clamp_int(apertura, 0, 31, 31), clamp_int(tongue, 0, 3, 0)
 
     def update_ref(self, t): # actualiza la ruta borrando todos los elementos con t < t_actual (dejando al menos un elemento en el deque)
         while self.ref[0][0] < t and len(self.ref) > 1:
@@ -1572,6 +1581,7 @@ class VirtualFingers(threading.Thread):
             self.ref.extend(new_ref)
 
     def merge_lips_surface_ref(self, new_ref): # agrega o reemplaza elementos a la ruta
+        new_ref = [(item[0], clamp_int(item[1], 0, 31, 31)) for item in new_ref]
         t_change = new_ref[0][0]
         if self.lips_surface_ref[-1][0] < t_change:  # si el t del ultimo elemento de la ruta anterior es menor al primero de la ruta que se quiere agregar, simplemente se agrega
             self.lips_surface_ref.extend(new_ref)
@@ -1584,6 +1594,7 @@ class VirtualFingers(threading.Thread):
             self.lips_surface_ref.extend(new_ref)
 
     def merge_tongue_ref(self, new_ref):
+        new_ref = [(item[0], clamp_int(item[1], 0, 3, 0)) for item in new_ref]
         t_change = new_ref[0][0]
         if self.tongue_ref[-1][0] < t_change:  # si el t del ultimo elemento de la ruta anterior es menor al primero de la ruta que se quiere agregar, simplemente se agrega
             self.tongue_ref.extend(new_ref)
@@ -1805,6 +1816,8 @@ class FingersDriver(Process):
                 ref_note = self.virtual_fingers.note # actualiza la nota que debería tocar
                 ref_aperture = self.virtual_fingers.aperture
                 ref_tongue = self.virtual_fingers.tongue
+                ref_aperture = clamp_int(ref_aperture, 0, 31, 31)
+                ref_tongue = clamp_int(ref_tongue, 0, 3, 0)
                 if ref_note != last_note or ref_aperture != last_aperture or ref_tongue != last_tongue: # si es distinta a la anterior (que ya estaba digitada), envia un mensaje al controlador de los dedos con la nueva digitación para que la actualice
                     # Modifica el estado de servos interno según un diccionario
                     if dict_notes[ref_note] in instrument_dicts[self.instrument].keys():

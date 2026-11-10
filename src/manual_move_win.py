@@ -4,20 +4,52 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QFileDialog, QWidget,
                              QLabel, QPushButton, QDoubleSpinBox, QSlider,
                              QTabWidget, QComboBox, QCheckBox, QTableWidget,
                              QTableWidgetItem, QHeaderView, QAbstractSpinBox,
-                             QSizePolicy, QFrame, QMenu, QMenuBar, QAction)
+                             QSizePolicy, QFrame, QMenu, QMenuBar, QAction,
+                             QLineEdit)
 from PyQt5.QtCore import Qt, QTimer
 import sys
 import json
 from src.route import dict_notes, dict_notes_rev
 from src.cinematica import *
 from src.motor_route import *
+from src.helmet_button import HelmetButtonReader, merged_helmet_button_config
 from time import time
 import os
 import numpy as np
 
 _LOOK_UP_TABLE_PATH = os.path.join(os.path.dirname(__file__), 'look_up_table.json')
+_SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.json')
 with open(_LOOK_UP_TABLE_PATH, 'r') as f:
     LOOK_UP_TABLE = json.load(f)
+
+
+def _load_helmet_button_config():
+    try:
+        with open(_SETTINGS_PATH, 'r') as file:
+            settings = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        settings = {}
+    return merged_helmet_button_config(settings.get("helmet_button", {}))
+
+
+def _save_helmet_button_config(config):
+    try:
+        with open(_SETTINGS_PATH, 'r') as file:
+            settings = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        settings = {}
+
+    settings["helmet_button"] = config
+    with open(_SETTINGS_PATH, 'w') as file:
+        json.dump(settings, file, indent=4, sort_keys=False)
+
+
+def _clamp_lips(value):
+    try:
+        value = int(round(float(value)))
+    except (TypeError, ValueError, OverflowError):
+        value = 31
+    return max(0, min(31, value))
 
 
 class AxisControl(QWidget):
@@ -153,6 +185,22 @@ class CollapsibleSection(QWidget):
         self.toggle_btn.setText(f"{arrow} {self._title}")
 
 
+class NoteDictionaryWindow(QMainWindow):
+    """Ventana independiente para editar el diccionario de notas."""
+
+    def __init__(self, table_widget, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Diccionario de Notas")
+        self.setWindowFlag(Qt.Window, True)
+        self.resize(720, 560)
+
+        central = QWidget()
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.addWidget(table_widget)
+        self.setCentralWidget(central)
+
+
 class ManualWindow(QMainWindow):
     def __init__(self, app, musician_pipe, data, parent=None, connected=False):
         super().__init__(parent)
@@ -162,6 +210,8 @@ class ManualWindow(QMainWindow):
         self.parent_win = parent
         self.musician_pipe = musician_pipe
         self.data = data
+        self.helmet_button_config = _load_helmet_button_config()
+        self.helmet_button_reader = None
         self.speed = 50
         self.moving_with_notes = False
         self.changing_other = False
@@ -347,8 +397,23 @@ class ManualWindow(QMainWindow):
         self.ledControlButton = QPushButton("Control LEDs")
         self.ledControlButton.setCheckable(True)
         self.ledControlButton.setToolTip("Iniciar control por LEDs usando la pose actual como referencia")
+        self.helmetPortEdit = QLineEdit(str(self.helmet_button_config.get("port", "COM6")))
+        self.helmetPortEdit.setToolTip("Puerto COM del Bluetooth serial del ESP32")
+        self.helmetPortEdit.setFixedWidth(90)
+        self.helmetButtonControl = QPushButton("Casco BT")
+        self.helmetButtonControl.setCheckable(True)
+        self.helmetButtonControl.setToolTip("Escuchar el boton del casco por Bluetooth serial")
+        self.helmetStatusLabel = QLabel("Casco BT inactivo")
+        self.helmetStatusLabel.setAlignment(Qt.AlignCenter)
+        self.helmetStatusLabel.setStyleSheet(
+            "background: #ECEFF1; color: #37474F; font-weight: bold; "
+            "padding: 4px; border-radius: 4px;")
         eg.addWidget(self.psMoveButton, 0, 0)
         eg.addWidget(self.ledControlButton, 0, 1)
+        eg.addWidget(QLabel("Puerto casco"), 1, 0)
+        eg.addWidget(self.helmetPortEdit, 1, 1)
+        eg.addWidget(self.helmetButtonControl, 2, 0)
+        eg.addWidget(self.helmetStatusLabel, 2, 1)
         right_col.addWidget(external_group)
 
         # Status
@@ -378,34 +443,18 @@ class ManualWindow(QMainWindow):
         self.stopButton.setFixedHeight(44)
         main_layout.addWidget(self.stopButton)
 
-        # ============ TABLA COLAPSABLE ============
-        self.tableWidget = QTableWidget()
-        self.tableWidget.setColumnCount(5)
-        self.tableWidget.setRowCount(len(LOOK_UP_TABLE))
-        labels = list(LOOK_UP_TABLE.keys())
-        self.tableWidget.setVerticalHeaderLabels(labels)
-        self.tableWidget.setHorizontalHeaderLabels(
-            ["L [mm]", "Theta [°]", "Offset [mm]", "Flow [SLPM]", "Lips"])
-        self.tableWidget.setAlternatingRowColors(True)
-        self.tableWidget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        row = 0
-        for value in LOOK_UP_TABLE.values():
-            self.tableWidget.setItem(row, 0, QTableWidgetItem(str(value['l'])))
-            self.tableWidget.setItem(row, 1, QTableWidgetItem(str(value['theta'])))
-            self.tableWidget.setItem(row, 2, QTableWidgetItem(str(value['offset'])))
-            self.tableWidget.setItem(row, 3, QTableWidgetItem(str(value['flow'])))
-            self.tableWidget.setItem(row, 4, QTableWidgetItem(str(value['lips'])))
-            row += 1
-
-        self.table_section = CollapsibleSection("Diccionario de Notas",
-                                                 self.tableWidget, collapsed=True)
-        main_layout.addWidget(self.table_section)
+        # ============ TABLA EN VENTANA INDEPENDIENTE ============
+        self.tableWidget = self._create_dictionary_table()
+        self.dictionary_window = NoteDictionaryWindow(self.tableWidget, parent=self)
 
         # ============ MENU ============
         menubar = self.menuBar()
         file_menu = menubar.addMenu("File")
         self.actionSaveDictionayAs = QAction("Save Dictionary As...", self)
         file_menu.addAction(self.actionSaveDictionayAs)
+        view_menu = menubar.addMenu("View")
+        self.actionShowDictionary = QAction("Mostrar diccionario", self)
+        view_menu.addAction(self.actionShowDictionary)
 
         # ============ INICIALIZAR VALORES ============
         self.ax_x.setValue(self.data['x'][-1])
@@ -444,6 +493,8 @@ class ManualWindow(QMainWindow):
         # External control
         self.psMoveButton.clicked.connect(self.start_ps_move_control)
         self.ledControlButton.toggled.connect(self.toggle_led_control)
+        self.helmetButtonControl.toggled.connect(self.toggle_helmet_button_control)
+        self.helmetPortEdit.editingFinished.connect(self._store_helmet_port_from_ui)
 
         # Speed
         self.speedSlider1.valueChanged.connect(self.change_speed)
@@ -459,12 +510,71 @@ class ManualWindow(QMainWindow):
 
         # Menu
         self.actionSaveDictionayAs.triggered.connect(self.save_dict_as)
+        self.actionShowDictionary.triggered.connect(self.show_dictionary_window)
 
         # ============ TIMER DE READBACK ============
         self._readback_timer = QTimer()
         self._readback_timer.setInterval(100)
         self._readback_timer.timeout.connect(self._update_readback)
         self._readback_timer.start()
+
+        if (self.helmet_button_config.get("enabled", True)
+                and self.helmet_button_config.get("auto_start", True)):
+            QTimer.singleShot(0, lambda: self.helmetButtonControl.setChecked(True))
+
+        QTimer.singleShot(0, self.show_dictionary_window)
+
+    def _create_dictionary_table(self):
+        table = QTableWidget()
+        table.setColumnCount(5)
+        table.setRowCount(len(LOOK_UP_TABLE))
+        table.setVerticalHeaderLabels(list(LOOK_UP_TABLE.keys()))
+        table.setHorizontalHeaderLabels(
+            ["L [mm]", "Theta [°]", "Offset [mm]", "Flow [SLPM]", "Lips"])
+        table.setAlternatingRowColors(True)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+
+        for row, value in enumerate(LOOK_UP_TABLE.values()):
+            table.setItem(row, 0, QTableWidgetItem(str(value['l'])))
+            table.setItem(row, 1, QTableWidgetItem(str(value['theta'])))
+            table.setItem(row, 2, QTableWidgetItem(str(value['offset'])))
+            table.setItem(row, 3, QTableWidgetItem(str(value['flow'])))
+            table.setItem(row, 4, QTableWidgetItem(str(value['lips'])))
+
+        return table
+
+    def show_dictionary_window(self):
+        if not self.dictionary_window.isVisible():
+            self._position_dictionary_window()
+            self.dictionary_window.show()
+
+        self.dictionary_window.raise_()
+        self.dictionary_window.activateWindow()
+
+    def _position_dictionary_window(self):
+        if not self.isVisible():
+            return
+
+        gap = 12
+        manual_geometry = self.frameGeometry()
+        width = self.dictionary_window.width()
+        height = self.dictionary_window.height()
+        pos = manual_geometry.topRight() + QtCore.QPoint(gap, 0)
+
+        screen = self.screen() or QApplication.primaryScreen()
+        available = screen.availableGeometry() if screen else None
+        if available is not None:
+            if pos.x() + width > available.right() + 1:
+                pos = manual_geometry.topLeft() - QtCore.QPoint(width + gap, 0)
+
+            max_x = max(available.left(), available.right() + 1 - width)
+            max_y = max(available.top(), available.bottom() + 1 - height)
+            x = min(max(pos.x(), available.left()), max_x)
+            y = min(max(pos.y(), available.top()), max_y)
+            pos = QtCore.QPoint(x, y)
+
+        self.dictionary_window.move(pos)
 
     # ===================== READBACK =====================
 
@@ -565,80 +675,98 @@ class ManualWindow(QMainWindow):
     def change_x(self, value):
         if not self.changing_other:
             self.changing_other = True
-            self.desired_state.x = value
-            self.musician_pipe.send(["move_to", self.desired_state, None,
-                                     True, False, False, False, self.speed])
-            self.update_values()
-            self.changing_other = False
+            try:
+                self.desired_state.x = value
+                self.musician_pipe.send(["move_to", self.desired_state, None,
+                                         True, False, False, False, self.speed])
+                self.update_values()
+            finally:
+                self.changing_other = False
 
     def change_z(self, value):
         if not self.changing_other:
             self.changing_other = True
-            self.desired_state.z = value
-            self.musician_pipe.send(["move_to", self.desired_state, None,
-                                     False, True, False, False, self.speed])
-            self.update_values()
-            self.changing_other = False
+            try:
+                self.desired_state.z = value
+                self.musician_pipe.send(["move_to", self.desired_state, None,
+                                         False, True, False, False, self.speed])
+                self.update_values()
+            finally:
+                self.changing_other = False
 
     def change_angle(self, value):
         if not self.changing_other:
             self.changing_other = True
-            self.desired_state.alpha = value
-            self.musician_pipe.send(["move_to", self.desired_state, None,
-                                     False, False, True, False, self.speed])
-            self.update_values()
-            self.changing_other = False
+            try:
+                self.desired_state.alpha = value
+                self.musician_pipe.send(["move_to", self.desired_state, None,
+                                         False, False, True, False, self.speed])
+                self.update_values()
+            finally:
+                self.changing_other = False
 
     def change_r(self, value):
         if not self.changing_other:
             self.changing_other = True
-            self.desired_state.r = value
-            self.musician_pipe.send(["move_to", self.desired_state, None,
-                                     False, False, False, False, self.speed])
-            self.update_values()
-            self.changing_other = False
+            try:
+                self.desired_state.r = value
+                self.musician_pipe.send(["move_to", self.desired_state, None,
+                                         False, False, False, False, self.speed])
+                self.update_values()
+            finally:
+                self.changing_other = False
 
     def change_theta(self, value):
         if not self.changing_other:
             self.changing_other = True
-            self.desired_state.theta = value
-            self.musician_pipe.send(["move_to", self.desired_state, None,
-                                     False, False, False, False, self.speed])
-            self.update_values()
-            self.changing_other = False
+            try:
+                self.desired_state.theta = value
+                self.musician_pipe.send(["move_to", self.desired_state, None,
+                                         False, False, False, False, self.speed])
+                self.update_values()
+            finally:
+                self.changing_other = False
 
     def change_offset(self, value):
         if not self.changing_other:
             self.changing_other = True
-            self.desired_state.o = value
-            self.musician_pipe.send(["move_to", self.desired_state, None,
-                                     False, False, False, False, self.speed])
-            self.update_values()
-            self.changing_other = False
+            try:
+                self.desired_state.o = value
+                self.musician_pipe.send(["move_to", self.desired_state, None,
+                                         False, False, False, False, self.speed])
+                self.update_values()
+            finally:
+                self.changing_other = False
 
     def change_flow(self):
         if not self.changing_other:
             self.changing_other = True
-            self.desired_state.flow = self.flowSpinBox.value()
-            self.musician_pipe.send(["move_to", self.desired_state, None,
-                                     False, False, False, True, self.speed])
-            self.changing_other = False
+            try:
+                self.desired_state.flow = self.flowSpinBox.value()
+                self.musician_pipe.send(["move_to", self.desired_state, None,
+                                         False, False, False, True, self.speed])
+            finally:
+                self.changing_other = False
 
     def change_flow_vibrato(self):
         if not self.changing_other:
             self.changing_other = True
-            self.desired_state.vibrato_freq = self.freqSpinBox.value()
-            self.musician_pipe.send(["move_to", self.desired_state, None,
-                                     False, False, False, True, self.speed])
-            self.changing_other = False
+            try:
+                self.desired_state.vibrato_freq = self.freqSpinBox.value()
+                self.musician_pipe.send(["move_to", self.desired_state, None,
+                                         False, False, False, True, self.speed])
+            finally:
+                self.changing_other = False
 
     def change_flow_vibrato_amp(self):
         if not self.changing_other:
             self.changing_other = True
-            self.desired_state.vibrato_amp = self.ampSpinBox.value()
-            self.musician_pipe.send(["move_to", self.desired_state, None,
-                                     False, False, False, True, self.speed])
-            self.changing_other = False
+            try:
+                self.desired_state.vibrato_amp = self.ampSpinBox.value()
+                self.musician_pipe.send(["move_to", self.desired_state, None,
+                                         False, False, False, True, self.speed])
+            finally:
+                self.changing_other = False
 
     # ===================== MOUTH =====================
 
@@ -676,51 +804,171 @@ class ManualWindow(QMainWindow):
         self.ledControlButton.setText("Detener LEDs" if active else "Control LEDs")
         self.ledControlButton.blockSignals(False)
 
+    def toggle_helmet_button_control(self, checked):
+        if checked:
+            self.start_helmet_button_control()
+        else:
+            self.stop_helmet_button_control()
+
+    def start_helmet_button_control(self):
+        if self.helmet_button_reader is not None and self.helmet_button_reader.isRunning():
+            return
+
+        port = self.helmetPortEdit.text().strip()
+        if not port:
+            self._set_helmet_status("Puerto casco vacio", "error")
+            self._set_helmet_button_state(False)
+            return
+
+        self.helmet_button_config["port"] = port
+
+        baudrate = int(self.helmet_button_config.get("baudrate", 115200))
+        timeout_s = float(self.helmet_button_config.get("timeout_s", 0.2))
+        reader = HelmetButtonReader(port, baudrate=baudrate, timeout_s=timeout_s, parent=self)
+        reader.buttonChanged.connect(self._helmet_button_changed)
+        reader.buttonPressed.connect(self._helmet_button_pressed)
+        reader.statusChanged.connect(lambda text: self._set_helmet_status(text, "ok"))
+        reader.errorOccurred.connect(self._helmet_reader_error)
+        reader.finished.connect(self._helmet_reader_finished)
+        self.helmet_button_reader = reader
+        self._set_helmet_button_state(True)
+        self._set_helmet_status(f"Conectando casco en {port}...", "active")
+        reader.start()
+
+    def stop_helmet_button_control(self):
+        reader = self.helmet_button_reader
+        if reader is not None:
+            reader.stop()
+            if reader.isRunning():
+                reader.wait(1000)
+        self.helmet_button_reader = None
+        self._set_helmet_button_state(False)
+        self._set_helmet_status("Casco BT inactivo", "idle")
+
+    def _store_helmet_port_from_ui(self):
+        port = self.helmetPortEdit.text().strip()
+        if not port:
+            return
+        self.helmet_button_config["port"] = port
+        self._store_helmet_button_config()
+
+    def _store_helmet_button_config(self):
+        self.helmet_button_config = merged_helmet_button_config(self.helmet_button_config)
+        _save_helmet_button_config(self.helmet_button_config)
+
+    def _helmet_button_changed(self, pressed):
+        if pressed:
+            self._set_helmet_status("Boton casco presionado", "active")
+        else:
+            port = self.helmet_button_config.get("port", "")
+            self._set_helmet_status(f"Casco BT conectado en {port}", "ok")
+
+    def _helmet_button_pressed(self):
+        note = self.set_note_in_dictionary()
+        if note:
+            self._set_helmet_status(f"Nota {note} guardada", "ok")
+        else:
+            self._set_helmet_status("Nota no encontrada en diccionario", "error")
+
+    def _helmet_reader_error(self, text):
+        self._set_helmet_status(text, "error")
+        self._set_helmet_button_state(False)
+
+    def _helmet_reader_finished(self):
+        if self.sender() is self.helmet_button_reader:
+            self.helmet_button_reader = None
+        if self.helmetButtonControl.isChecked():
+            self._set_helmet_button_state(False)
+
+    def _set_helmet_button_state(self, active):
+        self.helmetButtonControl.blockSignals(True)
+        self.helmetButtonControl.setChecked(active)
+        self.helmetButtonControl.setText("Detener casco" if active else "Casco BT")
+        self.helmetButtonControl.blockSignals(False)
+
+    def _set_helmet_status(self, text, level="idle"):
+        styles = {
+            "idle": "background: #ECEFF1; color: #37474F;",
+            "active": "background: #FFF3E0; color: #E65100;",
+            "ok": "background: #E8F5E9; color: #2E7D32;",
+            "error": "background: #FFEBEE; color: #B71C1C;",
+        }
+        style = styles.get(level, styles["idle"])
+        self.helmetStatusLabel.setText(text)
+        self.helmetStatusLabel.setStyleSheet(
+            f"{style} font-weight: bold; padding: 4px; border-radius: 4px;")
+
     def closeEvent(self, event):
         if self.ledControlButton.isChecked():
             self.musician_pipe.send(["led_control.stop"])
+        self.stop_helmet_button_control()
+        if hasattr(self, "dictionary_window"):
+            self.dictionary_window.close()
         super().closeEvent(event)
 
     # ===================== FINGERS =====================
 
     def change_note(self, value):
+        note = self.noteComboBox.itemText(value) or self.noteComboBox.currentText()
+        if note not in dict_notes_rev:
+            return
+
         self.musician_pipe.send(['execute_fingers_action',
-                                 dict_notes_rev[self.noteComboBox.itemText(value)], False])
+                                 dict_notes_rev[note], False])
         if self.moving_with_notes:
+            if self.changing_other:
+                return
+
             self.changing_other = True
-            pos = LOOK_UP_TABLE[self.noteComboBox.itemText(value)]
-            self.desired_state.r = pos['l']
-            self.desired_state.theta = pos['theta']
-            self.desired_state.o = pos['offset']
-            self.desired_state.flow = pos['flow']
-            self.desired_state.lips = pos['lips']
-            self.desired_state.vibrato_amp = 0
-            self.desired_state.vibrato_freq = 0
-            self.musician_pipe.send(["move_to", self.desired_state, None,
-                                     False, False, False, False, self.speed])
-            self.update_values()
-            self.changing_other = False
+            try:
+                pos = LOOK_UP_TABLE.get(note)
+                if pos is None:
+                    return
+
+                self.desired_state.r = pos['l']
+                self.desired_state.theta = pos['theta']
+                self.desired_state.o = pos['offset']
+                self.desired_state.flow = pos['flow']
+                self.desired_state.lips = _clamp_lips(pos['lips'])
+                self.desired_state.vibrato_amp = 0
+                self.desired_state.vibrato_freq = 0
+                self.musician_pipe.send(["move_to", self.desired_state, None,
+                                         False, False, False, False, self.speed])
+                self.update_values()
+            finally:
+                self.changing_other = False
 
     def move_to_notes_change(self, value):
-        self.moving_with_notes = value
+        self.moving_with_notes = bool(value)
 
     def set_note_in_dictionary(self):
-        note = self.data['notes'][-1]
+        note = self.noteComboBox.currentText()
+        if note not in LOOK_UP_TABLE:
+            return None
+
         l = self.data['radius'][-1]
         theta = self.data['theta'][-1]
         offset = self.data['offset'][-1]
         flow = self.data['mass_flow'][-1]
-        lips = self.data['lips'][-1]
+        lips = _clamp_lips(self.data['lips'][-1])
         LOOK_UP_TABLE[note]['l'] = l
         LOOK_UP_TABLE[note]['theta'] = theta
         LOOK_UP_TABLE[note]['offset'] = offset
+        LOOK_UP_TABLE[note]['flow'] = flow
         LOOK_UP_TABLE[note]['lips'] = lips
         row = list(LOOK_UP_TABLE.keys()).index(note)
-        self.tableWidget.setItem(row, 0, QTableWidgetItem(str(l)))
-        self.tableWidget.setItem(row, 1, QTableWidgetItem(str(theta)))
-        self.tableWidget.setItem(row, 2, QTableWidgetItem(str(offset)))
-        self.tableWidget.setItem(row, 3, QTableWidgetItem(str(flow)))
-        self.tableWidget.setItem(row, 4, QTableWidgetItem(str(lips)))
+        self.tableWidget.blockSignals(True)
+        try:
+            self.tableWidget.setItem(row, 0, QTableWidgetItem(str(l)))
+            self.tableWidget.setItem(row, 1, QTableWidgetItem(str(theta)))
+            self.tableWidget.setItem(row, 2, QTableWidgetItem(str(offset)))
+            self.tableWidget.setItem(row, 3, QTableWidgetItem(str(flow)))
+            self.tableWidget.setItem(row, 4, QTableWidgetItem(str(lips)))
+        finally:
+            self.tableWidget.blockSignals(False)
+        with open(_LOOK_UP_TABLE_PATH, 'w') as file:
+            json.dump(LOOK_UP_TABLE, file, indent=4, sort_keys=False)
+        return note
 
     # ===================== PIVOT =====================
 
@@ -760,11 +1008,13 @@ class ManualWindow(QMainWindow):
 
         self.musician_pipe.send(["pivot", route['x'], route['z'], route['alpha']])
         self.changing_other = True
-        self.desired_state.x = x_units_to_mm(route['x'][-1][1])
-        self.desired_state.z = z_units_to_mm(route['z'][-1][1])
-        self.desired_state.alpha = alpha_units_to_angle(route['alpha'][-1][1])
-        self.update_values()
-        self.changing_other = False
+        try:
+            self.desired_state.x = x_units_to_mm(route['x'][-1][1])
+            self.desired_state.z = z_units_to_mm(route['z'][-1][1])
+            self.desired_state.alpha = alpha_units_to_angle(route['alpha'][-1][1])
+            self.update_values()
+        finally:
+            self.changing_other = False
 
     def pivot(self):
         delta_x = self.pivotDeltaX.value()

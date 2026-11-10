@@ -24,7 +24,6 @@ if __name__ == '__main__':
     net = settings.get("network", {})
     host = net.get("host", "192.168.2.10")
     connections = [
-
         net.get("x_driver", "192.168.2.102"),
         net.get("z_driver", "192.168.2.104"),
         net.get("alpha_driver", "192.168.2.103"),
